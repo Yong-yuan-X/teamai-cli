@@ -21,9 +21,9 @@ export async function doctor(options: GlobalOptions): Promise<void> {
       fix: 'Set TGIT_TOKEN env var. Get a token from https://git.woa.com/profile/personal_access_tokens',
     },
     {
-      name: 'Local config exists (~/.tad/config.yaml)',
+      name: 'Local config exists (~/.teamai/config.yaml)',
       check: async () => localConfig !== null,
-      fix: 'Run `tad init` to initialize',
+      fix: 'Run `teamai init` to initialize',
     },
     {
       name: 'Team repo exists locally',
@@ -31,27 +31,27 @@ export async function doctor(options: GlobalOptions): Promise<void> {
         if (!localConfig) return false;
         return pathExists(localConfig.repo.localPath);
       },
-      fix: 'Run `tad init` to clone the team repo',
+      fix: 'Run `teamai init` to clone the team repo',
     },
     {
-      name: 'Team config (tad.yaml) is valid',
+      name: 'Team config (teamai.yaml) is valid',
       check: async () => {
         if (!localConfig) return false;
         const config = await loadTeamConfig(localConfig.repo.localPath);
         return config !== null;
       },
-      fix: 'Check tad.yaml in team repo for syntax errors',
+      fix: 'Check teamai.yaml in team repo for syntax errors',
     },
     {
-      name: 'tad hook in claude settings',
+      name: 'teamai hook in claude settings',
       check: async () => {
         const settingsPath = path.join(process.env.HOME ?? '', '.claude', 'settings.json');
         if (!await pathExists(settingsPath)) return false;
         const { readFileSafe } = await import('./utils/fs.js');
         const content = await readFileSafe(settingsPath);
-        return content?.includes('[tad]') ?? false;
+        return content?.includes('[teamai]') ?? false;
       },
-      fix: 'Run `tad init` to inject hooks',
+      fix: 'Run `teamai init` to inject hooks',
     },
   ];
 

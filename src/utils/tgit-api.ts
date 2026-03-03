@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { log } from './logger.js';
 
 const TGIT_API_BASE = 'https://git.woa.com/api/v3';
@@ -8,10 +10,46 @@ export interface TGitUser {
   email: string;
 }
 
+/**
+ * Load environment variables from ~/.teamai/env file (KEY=VALUE format).
+ * This provides a shell-independent way to configure tokens,
+ * solving issues where ~/.zshrc or ~/.bashrc aren't sourced in subprocesses.
+ */
+function loadEnvFile(): void {
+  const envPath = path.join(process.env.HOME ?? '', '.teamai', 'env');
+  try {
+    const content = fs.readFileSync(envPath, 'utf-8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx === -1) continue;
+      const key = trimmed.substring(0, eqIdx).trim();
+      const value = trimmed.substring(eqIdx + 1).trim();
+      if (key && !process.env[key]) {
+        process.env[key] = value;
+      }
+    }
+  } catch {
+    // File doesn't exist or not readable, that's fine
+  }
+}
+
+// Load env file on module init
+loadEnvFile();
+
 function getToken(): string {
   const token = process.env.TGIT_TOKEN;
   if (!token) {
-    throw new Error('TGIT_TOKEN environment variable is not set. Get one from https://git.woa.com/profile/personal_access_tokens');
+    throw new Error(
+      'TGIT_TOKEN environment variable is not set.\n' +
+      '  Get a token from https://git.woa.com/profile/personal_access_tokens\n' +
+      '  Then add it to your shell profile:\n' +
+      '    bash: echo \'export TGIT_TOKEN=your_token\' >> ~/.bashrc && source ~/.bashrc\n' +
+      '    zsh:  echo \'export TGIT_TOKEN=your_token\' >> ~/.zshrc && source ~/.zshrc\n' +
+      '  Or set it in ~/.teamai/env:\n' +
+      '    echo \'TGIT_TOKEN=your_token\' > ~/.teamai/env'
+    );
   }
   return token;
 }

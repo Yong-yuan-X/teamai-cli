@@ -5,7 +5,7 @@ import type { GlobalOptions } from './types.js';
 const program = new Command();
 
 program
-  .name('tad')
+  .name('teamai')
   .description('Team AI DevKit — 团队 AI 经验共享框架')
   .version('0.1.0')
   .option('--dry-run', 'Preview mode, no changes made')
@@ -17,7 +17,7 @@ program
 
 program
   .command('init')
-  .description('Initialize tad (configure TGit, clone repo, register member)')
+  .description('Initialize teamai (configure TGit, clone repo, register member)')
   .option('--repo <url>', 'Team repo URL')
   .action(async (cmdOpts) => {
     const globalOpts = program.opts() as GlobalOptions;

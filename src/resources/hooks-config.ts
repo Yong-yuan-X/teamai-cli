@@ -4,7 +4,7 @@ import { ResourceHandler } from './base.js';
 import type { ResourceItem, TadConfig, LocalConfig } from '../types.js';
 import { pathExists, readFileSafe, readJson, writeJson } from '../utils/fs.js';
 import { log } from '../utils/logger.js';
-import { TAD_HOOK_DESCRIPTION_PREFIX } from '../types.js';
+import { TEAMAI_HOOK_DESCRIPTION_PREFIX } from '../types.js';
 
 interface HookEntry {
   type: string;
@@ -81,10 +81,10 @@ export class HooksConfigHandler extends ResourceHandler {
         if (!settings.hooks[event]) settings.hooks[event] = [];
 
         for (const matcher of matchers) {
-          // Tag with tad prefix for identification
+          // Tag with teamai prefix for identification
           const description = matcher.description
-            ? `${TAD_HOOK_DESCRIPTION_PREFIX} ${matcher.description}`
-            : `${TAD_HOOK_DESCRIPTION_PREFIX} Team hook`;
+            ? `${TEAMAI_HOOK_DESCRIPTION_PREFIX} ${matcher.description}`
+            : `${TEAMAI_HOOK_DESCRIPTION_PREFIX} Team hook`;
 
           // Check if this exact hook already exists
           const exists = settings.hooks[event].some(

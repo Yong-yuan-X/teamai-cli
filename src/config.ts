@@ -4,8 +4,8 @@ import {
   TadConfigSchema,
   LocalConfigSchema,
   StateSchema,
-  TAD_CONFIG_PATH,
-  TAD_STATE_PATH,
+  TEAMAI_CONFIG_PATH,
+  TEAMAI_STATE_PATH,
   type TadConfig,
   type LocalConfig,
   type State,
@@ -14,28 +14,28 @@ import { readFileSafe, readJson, writeFile, writeJson, expandHome } from './util
 import { log } from './utils/logger.js';
 
 /**
- * Load the team config (tad.yaml) from the team repo
+ * Load the team config (teamai.yaml) from the team repo
  */
 export async function loadTeamConfig(repoPath: string): Promise<TadConfig | null> {
-  const content = await readFileSafe(path.join(repoPath, 'tad.yaml'));
+  const content = await readFileSafe(path.join(repoPath, 'teamai.yaml'));
   if (!content) {
-    log.debug('tad.yaml not found in repo');
+    log.debug('teamai.yaml not found in repo');
     return null;
   }
   try {
     const raw = YAML.parse(content);
     return TadConfigSchema.parse(raw);
   } catch (e) {
-    log.error(`Invalid tad.yaml: ${(e as Error).message}`);
+    log.error(`Invalid teamai.yaml: ${(e as Error).message}`);
     return null;
   }
 }
 
 /**
- * Load the local config (~/.tad/config.yaml)
+ * Load the local config (~/.teamai/config.yaml)
  */
 export async function loadLocalConfig(): Promise<LocalConfig | null> {
-  const content = await readFileSafe(expandHome(TAD_CONFIG_PATH));
+  const content = await readFileSafe(expandHome(TEAMAI_CONFIG_PATH));
   if (!content) return null;
   try {
     const raw = YAML.parse(content);
@@ -50,14 +50,14 @@ export async function loadLocalConfig(): Promise<LocalConfig | null> {
  * Save the local config
  */
 export async function saveLocalConfig(config: LocalConfig): Promise<void> {
-  await writeFile(expandHome(TAD_CONFIG_PATH), YAML.stringify(config));
+  await writeFile(expandHome(TEAMAI_CONFIG_PATH), YAML.stringify(config));
 }
 
 /**
- * Load the local state (~/.tad/state.json)
+ * Load the local state (~/.teamai/state.json)
  */
 export async function loadState(): Promise<State> {
-  const raw = await readJson<Record<string, unknown>>(expandHome(TAD_STATE_PATH));
+  const raw = await readJson<Record<string, unknown>>(expandHome(TEAMAI_STATE_PATH));
   if (!raw) return StateSchema.parse({});
   return StateSchema.parse(raw);
 }
@@ -66,20 +66,20 @@ export async function loadState(): Promise<State> {
  * Save the local state
  */
 export async function saveState(state: State): Promise<void> {
-  await writeJson(expandHome(TAD_STATE_PATH), state);
+  await writeJson(expandHome(TEAMAI_STATE_PATH), state);
 }
 
 /**
- * Require that tad is initialized (local config exists)
+ * Require that teamai is initialized (local config exists)
  */
 export async function requireInit(): Promise<{ localConfig: LocalConfig; teamConfig: TadConfig }> {
   const localConfig = await loadLocalConfig();
   if (!localConfig) {
-    throw new Error('tad is not initialized. Run `tad init` first.');
+    throw new Error('teamai is not initialized. Run `teamai init` first.');
   }
   const teamConfig = await loadTeamConfig(localConfig.repo.localPath);
   if (!teamConfig) {
-    throw new Error('Team config (tad.yaml) not found. Check your repo path.');
+    throw new Error('Team config (teamai.yaml) not found. Check your repo path.');
   }
   return { localConfig, teamConfig };
 }

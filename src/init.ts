@@ -8,7 +8,7 @@ import { pushRepo } from './utils/git.js';
 import { verifyToken, getCurrentUser } from './utils/tgit-api.js';
 import { ensureDir, writeFile, pathExists, expandHome } from './utils/fs.js';
 import { log, spinner } from './utils/logger.js';
-import { TAD_HOME, type GlobalOptions, type LocalConfig } from './types.js';
+import { TEAMAI_HOME, type GlobalOptions, type LocalConfig } from './types.js';
 
 function askQuestion(prompt: string): Promise<string> {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -21,7 +21,7 @@ function askQuestion(prompt: string): Promise<string> {
 }
 
 export async function init(options: GlobalOptions & { repo?: string }): Promise<void> {
-  log.info('Initializing tad...');
+  log.info('Initializing teamai...');
 
   // Step 1: Verify TGit token
   const spin = spinner('Verifying TGit token...').start();
@@ -31,15 +31,17 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
     spin.succeed(`Authenticated as ${user.username} (${user.name})`);
   } catch (e) {
     spin.fail((e as Error).message);
-    log.info('Set TGIT_TOKEN environment variable with a personal access token from:');
-    log.info('https://git.woa.com/profile/personal_access_tokens');
+    log.info('Set TGIT_TOKEN via one of these methods:');
+    log.info('  1. Shell profile: export TGIT_TOKEN=xxx (in ~/.bashrc or ~/.zshrc)');
+    log.info('  2. Env file: echo "TGIT_TOKEN=xxx" > ~/.teamai/env');
+    log.info('Get a token from: https://git.woa.com/profile/personal_access_tokens');
     process.exit(1);
   }
 
   // Step 2: Get repo URL
   let repoUrl = options.repo ?? '';
   if (!repoUrl) {
-    repoUrl = await askQuestion('Team repo URL (e.g. git@git.woa.com:team/tad-team.git): ');
+    repoUrl = await askQuestion('Team repo URL (e.g. git@git.woa.com:team/teamai-team.git): ');
   }
   if (!repoUrl) {
     log.error('Repo URL is required');
@@ -47,7 +49,7 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
   }
 
   // Step 3: Clone or link repo
-  const defaultLocalPath = path.join(process.env.HOME ?? '', '.tad', 'team-repo');
+  const defaultLocalPath = path.join(process.env.HOME ?? '', '.teamai', 'team-repo');
   let localPath = await askQuestion(`Local clone path [${defaultLocalPath}]: `);
   if (!localPath) localPath = defaultLocalPath;
   localPath = expandHome(localPath);
@@ -68,7 +70,7 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
   // Step 4: Load team config
   const teamConfig = await loadTeamConfig(localPath);
   if (!teamConfig) {
-    log.warn('tad.yaml not found in repo. Creating default config...');
+    log.warn('teamai.yaml not found in repo. Creating default config...');
     const defaultConfig = YAML.stringify({
       team: 'my-team',
       description: 'Team AI DevKit shared resources',
@@ -76,10 +78,10 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
       sharing: {
         skills: { syncTargets: ['claude', 'codex', 'claude-internal', 'cursor'] },
         rules: { enforced: [] },
-        docs: { localDir: '~/.tad/docs' },
+        docs: { localDir: '~/.teamai/docs' },
       },
     });
-    await writeFile(path.join(localPath, 'tad.yaml'), defaultConfig);
+    await writeFile(path.join(localPath, 'teamai.yaml'), defaultConfig);
 
     // Create standard directories
     for (const dir of ['members', 'skills', 'rules', 'docs', 'hooks', 'hooks/scripts', 'instincts']) {
@@ -105,9 +107,9 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
 
     if (!options.dryRun) {
       try {
-        await pushRepo(localPath, `[tad] Register member: ${user.username}`, [
+        await pushRepo(localPath, `[teamai] Register member: ${user.username}`, [
           'members/',
-          'tad.yaml',
+          'teamai.yaml',
           'skills/.gitkeep',
           'rules/.gitkeep',
           'docs/.gitkeep',
@@ -129,9 +131,9 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
     repo: { localPath, remote: repoUrl },
     username: user.username,
   };
-  await ensureDir(TAD_HOME);
+  await ensureDir(TEAMAI_HOME);
   await saveLocalConfig(localConfig);
-  log.success(`Local config saved to ${TAD_HOME}/config.yaml`);
+  log.success(`Local config saved to ${TEAMAI_HOME}/config.yaml`);
 
   // Step 7: Inject hooks into AI tools
   const reloadedTeamConfig = await loadTeamConfig(localPath);
@@ -139,6 +141,6 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
     await injectHooksToAllTools(reloadedTeamConfig.toolPaths);
   }
 
-  log.success('tad initialized successfully!');
-  log.info('Run `tad pull` to sync team resources, or `tad status` to check.');
+  log.success('teamai initialized successfully!');
+  log.info('Run `teamai pull` to sync team resources, or `teamai status` to check.');
 }

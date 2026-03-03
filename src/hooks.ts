@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { readJson, writeJson, readFileSafe, expandHome } from './utils/fs.js';
 import { log } from './utils/logger.js';
-import { TAD_HOOK_DESCRIPTION_PREFIX } from './types.js';
+import { TEAMAI_HOOK_DESCRIPTION_PREFIX } from './types.js';
 
 interface HookEntry {
   type: string;
@@ -19,14 +19,14 @@ interface SettingsJson {
   [key: string]: unknown;
 }
 
-const TAD_SESSION_START_HOOK: HookMatcher = {
+const TEAMAI_SESSION_START_HOOK: HookMatcher = {
   matcher: '*',
-  hooks: [{ type: 'command', command: 'tad pull --silent' }],
-  description: `${TAD_HOOK_DESCRIPTION_PREFIX} Auto-pull team resources on session start`,
+  hooks: [{ type: 'command', command: 'bash -lc "teamai pull --silent" 2>/dev/null || true' }],
+  description: `${TEAMAI_HOOK_DESCRIPTION_PREFIX} Auto-pull team resources on session start`,
 };
 
 /**
- * Inject tad hooks into a settings.json file
+ * Inject teamai hooks into a settings.json file
  */
 export async function injectHooks(settingsPath: string): Promise<void> {
   const expanded = expandHome(settingsPath);
@@ -39,22 +39,22 @@ export async function injectHooks(settingsPath: string): Promise<void> {
     settings.hooks.SessionStart = [];
   }
 
-  // Check if tad hook already exists
+  // Check if teamai hook already exists
   const existing = settings.hooks.SessionStart.find(
-    (h) => h.description?.startsWith(TAD_HOOK_DESCRIPTION_PREFIX)
+    (h) => h.description?.startsWith(TEAMAI_HOOK_DESCRIPTION_PREFIX)
   );
   if (existing) {
-    log.debug(`tad hook already exists in ${settingsPath}`);
+    log.debug(`teamai hook already exists in ${settingsPath}`);
     return;
   }
 
-  settings.hooks.SessionStart.push(TAD_SESSION_START_HOOK);
+  settings.hooks.SessionStart.push(TEAMAI_SESSION_START_HOOK);
   await writeJson(expanded, settings);
-  log.success(`Injected tad hook into ${settingsPath}`);
+  log.success(`Injected teamai hook into ${settingsPath}`);
 }
 
 /**
- * Remove tad hooks from a settings.json file
+ * Remove teamai hooks from a settings.json file
  */
 export async function removeHooks(settingsPath: string): Promise<void> {
   const expanded = expandHome(settingsPath);
@@ -64,7 +64,7 @@ export async function removeHooks(settingsPath: string): Promise<void> {
   let changed = false;
   for (const [event, matchers] of Object.entries(settings.hooks)) {
     const filtered = matchers.filter(
-      (h) => !h.description?.startsWith(TAD_HOOK_DESCRIPTION_PREFIX)
+      (h) => !h.description?.startsWith(TEAMAI_HOOK_DESCRIPTION_PREFIX)
     );
     if (filtered.length !== matchers.length) {
       settings.hooks[event] = filtered;
@@ -74,12 +74,12 @@ export async function removeHooks(settingsPath: string): Promise<void> {
 
   if (changed) {
     await writeJson(expanded, settings);
-    log.success(`Removed tad hooks from ${settingsPath}`);
+    log.success(`Removed teamai hooks from ${settingsPath}`);
   }
 }
 
 /**
- * Inject tad hooks into all AI tool settings
+ * Inject teamai hooks into all AI tool settings
  */
 export async function injectHooksToAllTools(toolPaths: Record<string, { settings?: string }>): Promise<void> {
   for (const [tool, paths] of Object.entries(toolPaths)) {

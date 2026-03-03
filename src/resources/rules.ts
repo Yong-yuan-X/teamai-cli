@@ -3,7 +3,7 @@ import { ResourceHandler } from './base.js';
 import type { ResourceItem, TadConfig, LocalConfig } from '../types.js';
 import { listFiles, pathExists, readFileSafe, writeFile } from '../utils/fs.js';
 import { log } from '../utils/logger.js';
-import { TAD_RULES_START, TAD_RULES_END } from '../types.js';
+import { TEAMAI_RULES_START, TEAMAI_RULES_END } from '../types.js';
 
 export class RulesHandler extends ResourceHandler {
   readonly type = 'rules' as const;
@@ -34,7 +34,7 @@ export class RulesHandler extends ResourceHandler {
 
   /**
    * Pull rules from team repo and merge into CLAUDE.md files.
-   * Uses marker comments to manage tad-injected sections.
+   * Uses marker comments to manage teamai-injected sections.
    */
   async pullItem(item: ResourceItem, teamConfig: TadConfig, _localConfig: LocalConfig): Promise<void> {
     // This is handled in bulk by pullAllRules
@@ -57,14 +57,14 @@ export class RulesHandler extends ResourceHandler {
     }
 
     const rulesBlock = [
-      TAD_RULES_START,
-      '<!-- DO NOT EDIT: This section is auto-managed by tad -->',
+      TEAMAI_RULES_START,
+      '<!-- DO NOT EDIT: This section is auto-managed by teamai -->',
       '',
-      '## Team Rules (tad)',
+      '## Team Rules (teamai)',
       '',
       ruleContents.join('\n\n---\n\n'),
       '',
-      TAD_RULES_END,
+      TEAMAI_RULES_END,
     ].join('\n');
 
     // Inject into each tool's CLAUDE.md
@@ -75,12 +75,12 @@ export class RulesHandler extends ResourceHandler {
 
       let existing = await readFileSafe(claudeMdPath) ?? '';
 
-      // Replace existing tad rules block or append
-      const startIdx = existing.indexOf(TAD_RULES_START);
-      const endIdx = existing.indexOf(TAD_RULES_END);
+      // Replace existing teamai rules block or append
+      const startIdx = existing.indexOf(TEAMAI_RULES_START);
+      const endIdx = existing.indexOf(TEAMAI_RULES_END);
 
       if (startIdx !== -1 && endIdx !== -1) {
-        existing = existing.substring(0, startIdx) + rulesBlock + existing.substring(endIdx + TAD_RULES_END.length);
+        existing = existing.substring(0, startIdx) + rulesBlock + existing.substring(endIdx + TEAMAI_RULES_END.length);
       } else {
         existing = existing.trimEnd() + '\n\n' + rulesBlock + '\n';
       }

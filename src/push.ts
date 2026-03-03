@@ -79,7 +79,7 @@ export async function push(options: GlobalOptions & { all?: boolean }): Promise<
     const gitFiles = ['skills/', 'instincts/'];
     await pushRepo(
       localConfig.repo.localPath,
-      `[tad] Push ${allItems.length} resource(s) from ${localConfig.username}`,
+      `[teamai] Push ${allItems.length} resource(s) from ${localConfig.username}`,
       gitFiles,
     );
     pushSpin.succeed(`Pushed ${allItems.length} resource(s) to team repo`);

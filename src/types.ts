@@ -8,7 +8,7 @@ export const ToolPathsSchema = z.object({
   claudemd: z.string().optional(),
 });
 
-// ─── Team config (tad.yaml) ─────────────────────────────
+// ─── Team config (teamai.yaml) ───────────────────────────
 
 export const SharingConfigSchema = z.object({
   skills: z.object({
@@ -18,7 +18,7 @@ export const SharingConfigSchema = z.object({
     enforced: z.array(z.string()).default([]),
   }).default({}),
   docs: z.object({
-    localDir: z.string().default('~/.tad/docs'),
+    localDir: z.string().default('~/.teamai/docs'),
   }).default({}),
 });
 
@@ -47,7 +47,7 @@ export const MemberConfigSchema = z.object({
 
 export type MemberConfig = z.infer<typeof MemberConfigSchema>;
 
-// ─── Local config (~/.tad/config.yaml) ──────────────────
+// ─── Local config (~/.teamai/config.yaml) ──────────────────
 
 export const LocalConfigSchema = z.object({
   repo: z.object({
@@ -59,7 +59,7 @@ export const LocalConfigSchema = z.object({
 
 export type LocalConfig = z.infer<typeof LocalConfigSchema>;
 
-// ─── Local state (~/.tad/state.json) ────────────────────
+// ─── Local state (~/.teamai/state.json) ────────────────────
 
 export const StateSchema = z.object({
   lastPush: z.string().nullable().default(null),
@@ -97,14 +97,14 @@ export interface GlobalOptions {
 
 // ─── Constants ──────────────────────────────────────────
 
-export const TAD_HOME = `${process.env.HOME}/.tad`;
-export const TAD_CONFIG_PATH = `${TAD_HOME}/config.yaml`;
-export const TAD_STATE_PATH = `${TAD_HOME}/state.json`;
-export const TAD_TOKEN_PATH = `${TAD_HOME}/token`;
+export const TEAMAI_HOME = `${process.env.HOME}/.teamai`;
+export const TEAMAI_CONFIG_PATH = `${TEAMAI_HOME}/config.yaml`;
+export const TEAMAI_STATE_PATH = `${TEAMAI_HOME}/state.json`;
+export const TEAMAI_TOKEN_PATH = `${TEAMAI_HOME}/token`;
 
 export const RESOURCE_TYPES: ResourceType[] = ['skills', 'rules', 'hooks', 'docs', 'instincts'];
 
-export const TAD_RULES_START = '<!-- [tad:rules:start] -->';
-export const TAD_RULES_END = '<!-- [tad:rules:end] -->';
+export const TEAMAI_RULES_START = '<!-- [teamai:rules:start] -->';
+export const TEAMAI_RULES_END = '<!-- [teamai:rules:end] -->';
 
-export const TAD_HOOK_DESCRIPTION_PREFIX = '[tad]';
+export const TEAMAI_HOOK_DESCRIPTION_PREFIX = '[teamai]';
