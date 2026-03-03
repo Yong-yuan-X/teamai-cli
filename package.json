@@ -1,0 +1,38 @@
+{
+  "name": "tad-cli",
+  "version": "0.1.0",
+  "description": "Team AI DevKit — 团队 AI 经验共享框架",
+  "type": "module",
+  "bin": {
+    "tad": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@git.woa.com:jeffyxu/tad-cli.git"
+  },
+  "keywords": ["ai", "team", "devkit", "skills", "sharing"],
+  "author": "jeffyxu",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "fs-extra": "^11.2.0",
+    "gray-matter": "^4.0.3",
+    "ora": "^8.1.0",
+    "simple-git": "^3.27.0",
+    "yaml": "^2.6.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^20.17.0",
+    "tsup": "^8.3.0",
+    "typescript": "^5.7.0"
+  }
+}

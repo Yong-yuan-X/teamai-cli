@@ -1,0 +1,94 @@
+import { Command } from 'commander';
+import { setVerbose, setSilent } from './utils/logger.js';
+import type { GlobalOptions } from './types.js';
+
+const program = new Command();
+
+program
+  .name('tad')
+  .description('Team AI DevKit — 团队 AI 经验共享框架')
+  .version('0.1.0')
+  .option('--dry-run', 'Preview mode, no changes made')
+  .option('-v, --verbose', 'Verbose output')
+  .hook('preAction', (thisCommand) => {
+    const opts = thisCommand.opts();
+    if (opts.verbose) setVerbose(true);
+  });
+
+program
+  .command('init')
+  .description('Initialize tad (configure TGit, clone repo, register member)')
+  .option('--repo <url>', 'Team repo URL')
+  .action(async (cmdOpts) => {
+    const globalOpts = program.opts() as GlobalOptions;
+    const { init } = await import('./init.js');
+    await init({ ...globalOpts, ...cmdOpts });
+  });
+
+program
+  .command('push')
+  .description('Push local resources to team repo')
+  .option('--all', 'Push all without confirmation')
+  .action(async (cmdOpts) => {
+    const globalOpts = program.opts() as GlobalOptions;
+    const { push } = await import('./push.js');
+    await push({ ...globalOpts, ...cmdOpts });
+  });
+
+program
+  .command('pull')
+  .description('Pull team resources and inject into local AI tools')
+  .option('--silent', 'Silent mode (for hooks)')
+  .action(async (cmdOpts) => {
+    const globalOpts = program.opts() as GlobalOptions;
+    if (cmdOpts.silent) setSilent(true);
+    const { pull } = await import('./pull.js');
+    await pull({ ...globalOpts, ...cmdOpts });
+  });
+
+program
+  .command('sync')
+  .description('Bidirectional sync (push + pull)')
+  .action(async () => {
+    const globalOpts = program.opts() as GlobalOptions;
+    const { sync } = await import('./sync.js');
+    await sync(globalOpts);
+  });
+
+program
+  .command('status')
+  .description('Show local vs team repo diff')
+  .action(async () => {
+    const globalOpts = program.opts() as GlobalOptions;
+    const { status } = await import('./status.js');
+    await status(globalOpts);
+  });
+
+program
+  .command('list [type]')
+  .description('List resources (skills|rules|hooks|docs|instincts)')
+  .action(async (type) => {
+    const globalOpts = program.opts() as GlobalOptions;
+    const { list } = await import('./status.js');
+    await list(type, globalOpts);
+  });
+
+program
+  .command('members')
+  .description('List team members')
+  .action(async () => {
+    const globalOpts = program.opts() as GlobalOptions;
+    const { listMembers } = await import('./members.js');
+    await listMembers(globalOpts);
+  });
+
+program
+  .command('doctor')
+  .description('Diagnose configuration issues')
+  .action(async () => {
+    const globalOpts = program.opts() as GlobalOptions;
+    const { doctor } = await import('./doctor.js');
+    await doctor(globalOpts);
+  });
+
+program.parse();
