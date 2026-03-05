@@ -32,7 +32,7 @@ export const TeamaiConfigSchema = z.object({
     claude: { skills: '.claude/skills', rules: '.claude/rules', settings: '.claude/settings.json', claudemd: '.claude/CLAUDE.md' },
     codex: { skills: '.codex/skills', rules: '.codex/rules' },
     'claude-internal': { skills: '.claude-internal/skills', rules: '.claude-internal/rules', settings: '.claude-internal/settings.json', claudemd: '.claude-internal/CLAUDE.md' },
-    cursor: { skills: '.cursor/skills-cursor', rules: '.cursor/rules' },
+    cursor: { skills: '.cursor/skills-cursor', rules: '.cursor/rules', settings: '.cursor/hooks.json' },
   }),
 });
 
