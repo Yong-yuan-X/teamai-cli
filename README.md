@@ -57,6 +57,8 @@ teamai status
 | `teamai status` | 查看本地 vs 团队仓库差异 |
 | `teamai list [type]` | 列出资源（skills\|rules\|hooks\|docs\|instincts） |
 | `teamai members` | 列出团队成员 |
+| `teamai members add` | 添加团队成员（需 write 角色） |
+| `teamai remove <type> <name>` | 从团队仓库和本地删除资源（skills\|rules） |
 | `teamai doctor` | 诊断配置问题 |
 
 全局选项：
@@ -80,7 +82,7 @@ teamai status
 
 - `teamai init` 会自动注入 SessionStart hook，每次启动 AI 工具会话时自动拉取团队最新内容
 - Skills 同步到 `~/.claude/skills/`、`~/.codex/skills/`、`~/.claude-internal/skills/`、`~/.cursor/skills-cursor/`
-- Rules 合并到 `~/.claude/CLAUDE.md`（使用标记注释管理）
+- Rules 同步到各工具的 rules 目录，并通过标记注释合并到 `CLAUDE.md`（支持 claude、claude-internal）
 - Docs 同步到 `~/.teamai/docs/`
 
 ## 更新

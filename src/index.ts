@@ -7,7 +7,7 @@ const program = new Command();
 program
   .name('teamai')
   .description('Team AI DevKit — 团队 AI 经验共享框架')
-  .version('0.1.8')
+  .version('0.1.9')
   .option('--dry-run', 'Preview mode, no changes made')
   .option('-v, --verbose', 'Verbose output')
   .hook('preAction', (thisCommand) => {
