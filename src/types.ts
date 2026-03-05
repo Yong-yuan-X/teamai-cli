@@ -4,6 +4,7 @@ import { z } from 'zod';
 
 export const ToolPathsSchema = z.object({
   skills: z.string(),
+  rules: z.string().optional(),
   settings: z.string().optional(),
   claudemd: z.string().optional(),
 });
@@ -28,10 +29,10 @@ export const TeamaiConfigSchema = z.object({
   repo: z.string(),
   sharing: SharingConfigSchema.default({}),
   toolPaths: z.record(z.string(), ToolPathsSchema).default({
-    claude: { skills: '.claude/skills', settings: '.claude/settings.json', claudemd: '.claude/CLAUDE.md' },
-    codex: { skills: '.codex/skills' },
-    'claude-internal': { skills: '.claude-internal/skills', settings: '.claude-internal/settings.json' },
-    cursor: { skills: '.cursor/skills-cursor' },
+    claude: { skills: '.claude/skills', rules: '.claude/rules', settings: '.claude/settings.json', claudemd: '.claude/CLAUDE.md' },
+    codex: { skills: '.codex/skills', rules: '.codex/rules' },
+    'claude-internal': { skills: '.claude-internal/skills', rules: '.claude-internal/rules', settings: '.claude-internal/settings.json', claudemd: '.claude-internal/CLAUDE.md' },
+    cursor: { skills: '.cursor/skills-cursor', rules: '.cursor/rules' },
   }),
 });
 

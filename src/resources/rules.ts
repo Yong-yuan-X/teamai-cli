@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { ResourceHandler } from './base.js';
 import type { ResourceItem, TeamaiConfig, LocalConfig } from '../types.js';
-import { listFiles, pathExists, readFileSafe, writeFile, copyFile } from '../utils/fs.js';
+import { listFiles, pathExists, readFileSafe, writeFile, copyFile, ensureDir } from '../utils/fs.js';
 import { log } from '../utils/logger.js';
 import { TEAMAI_RULES_START, TEAMAI_RULES_END } from '../types.js';
 
@@ -10,7 +10,7 @@ export class RulesHandler extends ResourceHandler {
 
   /**
    * Scan for local rule .md files that are not yet in the team repo.
-   * Looks in each tool's CLAUDE.md sibling `rules/` directory (e.g. ~/.claude/rules/).
+   * Looks in each tool's configured rules/ directory (e.g. ~/.claude/rules/).
    */
   async scanLocalForPush(teamConfig: TeamaiConfig, localConfig: LocalConfig): Promise<ResourceItem[]> {
     const teamRulesDir = path.join(localConfig.repo.localPath, 'rules');
@@ -23,11 +23,11 @@ export class RulesHandler extends ResourceHandler {
     const items: ResourceItem[] = [];
     const seen = new Set<string>();
 
-    // Scan each tool's directory for a sibling `rules/` folder
+    // Scan each tool's rules/ directory
     for (const [_tool, toolPath] of Object.entries(teamConfig.toolPaths)) {
-      if (!toolPath.claudemd) continue;
-      const toolDir = path.join(process.env.HOME ?? '', path.dirname(toolPath.claudemd));
-      const rulesDir = path.join(toolDir, 'rules');
+      const rulesPath = toolPath.rules;
+      if (!rulesPath) continue;
+      const rulesDir = path.join(process.env.HOME ?? '', rulesPath);
       if (!await pathExists(rulesDir)) continue;
 
       const files = await listFiles(rulesDir);
@@ -42,18 +42,6 @@ export class RulesHandler extends ResourceHandler {
           sourcePath: path.join(rulesDir, file),
           relativePath: `rules/${file}`,
         });
-      }
-    }
-
-    // Also scan the team repo rules/ dir for untracked files (created directly)
-    if (await pathExists(teamRulesDir)) {
-      const repoFiles = await listFiles(teamRulesDir);
-      for (const file of repoFiles) {
-        if (!file.endsWith('.md')) continue;
-        if (seen.has(file)) continue;
-        // Check if this file is untracked by git (new, not yet committed)
-        // We include all files here; pushRepo will handle the git add/commit
-        seen.add(file);
       }
     }
 
@@ -84,49 +72,59 @@ export class RulesHandler extends ResourceHandler {
   }
 
   /**
-   * Pull rules from team repo and merge into CLAUDE.md files.
-   * Uses marker comments to manage teamai-injected sections.
+   * Pull a single rule file to all configured AI tool rules/ directories.
    */
   async pullItem(item: ResourceItem, teamConfig: TeamaiConfig, _localConfig: LocalConfig): Promise<void> {
-    // This is handled in bulk by pullAllRules
+    const home = process.env.HOME ?? '';
+    for (const [tool, toolPath] of Object.entries(teamConfig.toolPaths)) {
+      if (!toolPath.rules) continue;
+      const destDir = path.join(home, toolPath.rules);
+      await ensureDir(destDir);
+      const dest = path.join(destDir, `${item.name}.md`);
+      try {
+        await copyFile(item.sourcePath, dest);
+        log.debug(`Synced rule ${item.name} → ${tool}`);
+      } catch (e) {
+        log.warn(`Failed to sync rule ${item.name} to ${tool}: ${(e as Error).message}`);
+      }
+    }
   }
 
   /**
-   * Merge all rules into CLAUDE.md for each AI tool that has a claudemd path.
+   * Distribute rule files to each tool's rules/ directory, then update
+   * CLAUDE.md with a lightweight reference list instead of inlining content.
    */
   async pullAllRules(teamConfig: TeamaiConfig, localConfig: LocalConfig): Promise<void> {
     const rules = await this.scanTeamForPull(teamConfig, localConfig);
     if (rules.length === 0) return;
 
-    // Build the merged rules block
-    const ruleContents: string[] = [];
+    // 1. Distribute rule files to each tool's rules/ directory
     for (const rule of rules) {
-      const content = await readFileSafe(rule.sourcePath);
-      if (content) {
-        ruleContents.push(`### ${rule.name}\n\n${content.trim()}`);
-      }
+      await this.pullItem(rule, teamConfig, localConfig);
     }
 
-    const rulesBlock = [
-      TEAMAI_RULES_START,
-      '<!-- DO NOT EDIT: This section is auto-managed by teamai -->',
-      '',
-      '## Team Rules (teamai)',
-      '',
-      ruleContents.join('\n\n---\n\n'),
-      '',
-      TEAMAI_RULES_END,
-    ].join('\n');
-
-    // Inject into each tool's CLAUDE.md
+    // 2. Update CLAUDE.md with references only
+    const home = process.env.HOME ?? '';
     for (const [tool, toolPath] of Object.entries(teamConfig.toolPaths)) {
-      if (!toolPath.claudemd) continue;
+      if (!toolPath.claudemd || !toolPath.rules) continue;
 
-      const claudeMdPath = path.join(process.env.HOME ?? '', toolPath.claudemd);
+      const ruleRefs = rules.map((r) => `- ~/${toolPath.rules}/${r.name}.md`);
+      const rulesBlock = [
+        TEAMAI_RULES_START,
+        '<!-- DO NOT EDIT: This section is auto-managed by teamai -->',
+        '',
+        '## Team Rules (teamai)',
+        '',
+        'The following rule files apply to this project:',
+        '',
+        ...ruleRefs,
+        '',
+        TEAMAI_RULES_END,
+      ].join('\n');
 
+      const claudeMdPath = path.join(home, toolPath.claudemd);
       let existing = await readFileSafe(claudeMdPath) ?? '';
 
-      // Replace existing teamai rules block or append
       const startIdx = existing.indexOf(TEAMAI_RULES_START);
       const endIdx = existing.indexOf(TEAMAI_RULES_END);
 
@@ -138,7 +136,7 @@ export class RulesHandler extends ResourceHandler {
 
       try {
         await writeFile(claudeMdPath, existing);
-        log.debug(`Updated rules in ${tool} CLAUDE.md`);
+        log.debug(`Updated rules references in ${tool} CLAUDE.md`);
       } catch (e) {
         log.warn(`Failed to update ${tool} CLAUDE.md: ${(e as Error).message}`);
       }
