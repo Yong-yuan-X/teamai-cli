@@ -1,6 +1,8 @@
 import readline from 'node:readline';
 import { requireInit, loadState, saveState } from './config.js';
-import { pushRepo } from './utils/git.js';
+import { pullRepo, pushRepoBranch, generateBranchName } from './utils/git.js';
+import { createMergeRequest, getUserByUsername } from './utils/tgit-api.js';
+import { parseRepoInput } from './utils/repo-url.js';
 import { log, spinner } from './utils/logger.js';
 import { getHandler } from './resources/index.js';
 import type { GlobalOptions, ResourceItem, ResourceType } from './types.js';
@@ -63,7 +65,16 @@ export async function push(options: GlobalOptions & { all?: boolean }): Promise<
     }
   }
 
-  // Push each item
+  // Pull latest master before pushing
+  const pullSpin = spinner('Pulling latest master...').start();
+  try {
+    await pullRepo(localConfig.repo.localPath);
+    pullSpin.succeed('Master up to date');
+  } catch (e) {
+    pullSpin.warn(`Pull failed: ${(e as Error).message}`);
+  }
+
+  // Push each item to local repo
   const pushSpin = spinner('Pushing resources...').start();
   const pushedFiles: string[] = [];
 
@@ -73,16 +84,66 @@ export async function push(options: GlobalOptions & { all?: boolean }): Promise<
     pushedFiles.push(item.relativePath);
   }
 
-  // Git commit and push
+  // Create branch, commit, and push
   try {
-    // Add all files under the resource directories
     const gitFiles = ['skills/', 'rules/', 'instincts/'];
-    await pushRepo(
+    const branchName = generateBranchName(localConfig.username);
+    const commitMsg = `[teamai] Push ${allItems.length} resource(s) from ${localConfig.username}`;
+
+    const hasChanges = await pushRepoBranch(
       localConfig.repo.localPath,
-      `[teamai] Push ${allItems.length} resource(s) from ${localConfig.username}`,
+      commitMsg,
       gitFiles,
+      branchName,
     );
-    pushSpin.succeed(`Pushed ${allItems.length} resource(s) to team repo`);
+
+    if (!hasChanges) {
+      pushSpin.succeed('No changes to push (files already up to date)');
+      return;
+    }
+
+    pushSpin.succeed(`Pushed branch ${branchName}`);
+
+    // Create Merge Request
+    const mrSpin = spinner('Creating Merge Request...').start();
+    try {
+      let repoInfo;
+      try {
+        repoInfo = parseRepoInput(teamConfig.repo);
+      } catch {
+        repoInfo = parseRepoInput(localConfig.repo.remote);
+      }
+
+      // Resolve reviewer usernames to TGit user IDs
+      const reviewerIds: number[] = [];
+      if (teamConfig.reviewers && teamConfig.reviewers.length > 0) {
+        for (const reviewer of teamConfig.reviewers) {
+          try {
+            const user = await getUserByUsername(reviewer);
+            if (user) {
+              reviewerIds.push(user.id);
+            } else {
+              log.debug(`Reviewer ${reviewer} not found on TGit, skipping`);
+            }
+          } catch {
+            log.debug(`Failed to look up reviewer ${reviewer}, skipping`);
+          }
+        }
+      }
+
+      const mr = await createMergeRequest(
+        repoInfo.projectId,
+        branchName,
+        'master',
+        commitMsg,
+        `Pushed ${allItems.length} resource(s):\n${allItems.map((i) => `- [${i.type}] ${i.name}`).join('\n')}`,
+        reviewerIds.length > 0 ? reviewerIds : undefined,
+      );
+      mrSpin.succeed(`Merge Request created: ${mr.web_url}`);
+    } catch (e) {
+      mrSpin.fail(`Failed to create MR: ${(e as Error).message}`);
+      log.info(`Branch ${branchName} has been pushed. You can create a MR manually.`);
+    }
   } catch (e) {
     pushSpin.fail(`Push failed: ${(e as Error).message}`);
     return;

@@ -50,14 +50,14 @@ teamai status
 
 | 命令 | 说明 |
 |------|------|
-| `teamai init` | 初始化（TGit 认证、关联仓库、注册成员、注入 hooks） |
-| `teamai push [--all]` | 推送本地新资源到团队仓库 |
+| `teamai init` | 初始化（TGit 认证、关联仓库、注册成员、配置 reviewers、注入 hooks） |
+| `teamai push [--all]` | 推送本地新资源到独立分支并创建 Merge Request |
 | `teamai pull [--silent]` | 拉取团队资源并注入到本地 AI 工具 |
 | `teamai sync` | 双向同步（push + pull） |
 | `teamai status` | 查看本地 vs 团队仓库差异 |
 | `teamai list [type]` | 列出资源（skills\|rules\|hooks\|docs\|instincts） |
 | `teamai members` | 列出已注册的团队成员 |
-| `teamai remove <type> <name>` | 从团队仓库和本地删除资源（skills\|rules） |
+| `teamai remove <type> <name>` | 从团队仓库和本地删除资源并创建 MR（skills\|rules） |
 | `teamai doctor` | 诊断配置问题 |
 
 全局选项：
@@ -73,12 +73,19 @@ teamai status
     ▼                                     ▼
   teamai push                        teamai push
     │                                     │
+    ▼                                     ▼
+  创建分支 + MR                       创建分支 + MR
+    │                                     │
     └──────► TGit 团队仓库 ◄──────────────┘
-                  │
-                  ▼ SessionStart hook → teamai pull --silent
+                  │         ▲
+                  │         │ reviewer 审批合并 MR
+                  ▼
+             SessionStart hook → teamai pull --silent
              自动拉取到所有成员本地
 ```
 
+- `teamai push` 会创建独立分支（`teamai/push/<user>/<timestamp>`），推送后自动创建 Merge Request 并指派 reviewers
+- `teamai init` 初始化时可配置默认 reviewers（记录在 `teamai.yaml` 的 `reviewers` 字段）
 - `teamai init` 会自动注入 SessionStart hook，每次启动 AI 工具会话时自动拉取团队最新内容
 - Skills 同步到 `~/.claude/skills/`、`~/.codex/skills/`、`~/.claude-internal/skills/`、`~/.cursor/skills-cursor/`
 - Rules 同步到各工具的 rules 目录，并通过标记注释合并到 `CLAUDE.md`（支持 claude、claude-internal）

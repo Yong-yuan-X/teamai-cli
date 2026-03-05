@@ -1,6 +1,8 @@
 import readline from 'node:readline';
 import { requireInit, loadState, saveState } from './config.js';
-import { pushRepo } from './utils/git.js';
+import { pullRepo, pushRepoBranch, generateBranchName } from './utils/git.js';
+import { createMergeRequest, getUserByUsername } from './utils/tgit-api.js';
+import { parseRepoInput } from './utils/repo-url.js';
 import { log, spinner } from './utils/logger.js';
 import { getHandler } from './resources/index.js';
 import type { GlobalOptions, ResourceType } from './types.js';
@@ -28,6 +30,12 @@ export async function remove(
   }
 
   const { localConfig, teamConfig } = await requireInit();
+
+  // Pull latest before making changes
+  try {
+    await pullRepo(localConfig.repo.localPath);
+  } catch { /* continue even if pull fails */ }
+
   const handler = getHandler(type as ResourceType);
 
   // Verify the resource exists somewhere
@@ -71,14 +79,57 @@ export async function remove(
     return;
   }
 
-  // Git commit and push the deletion
+  // Git commit and push via branch + MR
   try {
-    await pushRepo(
+    const branchName = generateBranchName(localConfig.username);
+    const commitMsg = `[teamai] Remove ${type.replace(/s$/, '')} "${name}" by ${localConfig.username}`;
+
+    const hasChanges = await pushRepoBranch(
       localConfig.repo.localPath,
-      `[teamai] Remove ${type.replace(/s$/, '')} "${name}" by ${localConfig.username}`,
-      [`${type}/`, 'rules/'],  // include rules/ for CLAUDE.md ref updates
+      commitMsg,
+      [`${type}/`, 'rules/'],
+      branchName,
     );
-    spin.succeed(`Removed [${type}] ${name} from ${removedPaths.length} location(s)`);
+
+    if (!hasChanges) {
+      spin.succeed('No changes to push');
+    } else {
+      spin.succeed(`Removed [${type}] ${name} from ${removedPaths.length} location(s)`);
+
+      // Create MR
+      const mrSpin = spinner('Creating Merge Request...').start();
+      try {
+        let repoInfo;
+        try {
+          repoInfo = parseRepoInput(teamConfig.repo);
+        } catch {
+          repoInfo = parseRepoInput(localConfig.repo.remote);
+        }
+
+        const reviewerIds: number[] = [];
+        if (teamConfig.reviewers && teamConfig.reviewers.length > 0) {
+          for (const reviewer of teamConfig.reviewers) {
+            try {
+              const reviewerUser = await getUserByUsername(reviewer);
+              if (reviewerUser) reviewerIds.push(reviewerUser.id);
+            } catch { /* skip */ }
+          }
+        }
+
+        const mr = await createMergeRequest(
+          repoInfo.projectId,
+          branchName,
+          'master',
+          commitMsg,
+          `Remove [${type}] ${name}`,
+          reviewerIds.length > 0 ? reviewerIds : undefined,
+        );
+        mrSpin.succeed(`Merge Request created: ${mr.web_url}`);
+      } catch (e) {
+        mrSpin.fail(`Failed to create MR: ${(e as Error).message}`);
+        log.info(`Branch ${branchName} has been pushed. You can create a MR manually.`);
+      }
+    }
   } catch (e) {
     spin.fail(`Git push failed: ${(e as Error).message}`);
     return;

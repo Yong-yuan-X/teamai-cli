@@ -39,7 +39,10 @@ export async function pullRepo(localPath: string): Promise<string> {
   return `${result.summary.changes} file(s) changed`;
 }
 
-export async function pushRepo(localPath: string, message: string, files: string[]): Promise<void> {
+/**
+ * Push directly to the current branch (master). Used only during init for first-time setup.
+ */
+export async function pushRepoDirectly(localPath: string, message: string, files: string[]): Promise<void> {
   const git = createGit(localPath);
   await git.add(files);
   const status = await git.status();
@@ -49,6 +52,52 @@ export async function pushRepo(localPath: string, message: string, files: string
   }
   await git.commit(message);
   await git.push();
+}
+
+/**
+ * Create a new branch, commit files, and push the branch to remote.
+ * Returns false if there are no changes to commit.
+ * Leaves the local repo on master after pushing.
+ */
+export async function pushRepoBranch(
+  localPath: string,
+  message: string,
+  files: string[],
+  branchName: string,
+): Promise<boolean> {
+  const git = createGit(localPath);
+
+  // Create and switch to new branch
+  await git.checkoutLocalBranch(branchName);
+
+  // Stage files
+  await git.add(files);
+  const status = await git.status();
+  if (status.staged.length === 0) {
+    log.debug('Nothing to commit, switching back to master');
+    await git.checkout('master');
+    await git.deleteLocalBranch(branchName, true);
+    return false;
+  }
+
+  // Commit and push branch
+  await git.commit(message);
+  await git.push(['-u', 'origin', branchName]);
+
+  // Switch back to master
+  await git.checkout('master');
+
+  return true;
+}
+
+/**
+ * Generate a branch name for teamai push.
+ */
+export function generateBranchName(username: string): string {
+  const now = new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const timestamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  return `teamai/push/${username}/${timestamp}`;
 }
 
 export async function getRepoStatus(localPath: string): Promise<{ ahead: number; behind: number; modified: string[] }> {

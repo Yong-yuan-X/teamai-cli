@@ -174,3 +174,67 @@ export async function createProject(
   return resp.json() as Promise<TGitProject>;
 }
 
+// ─── User search ────────────────────────────────────────
+
+export interface TGitSearchUser {
+  id: number;
+  username: string;
+  name: string;
+}
+
+/**
+ * Search TGit users by keyword.
+ */
+export async function searchUsers(query: string): Promise<TGitSearchUser[]> {
+  const resp = await tgitFetch(`/users?search=${encodeURIComponent(query)}`);
+  return resp.json() as Promise<TGitSearchUser[]>;
+}
+
+/**
+ * Get a TGit user by exact username. Returns null if not found.
+ */
+export async function getUserByUsername(username: string): Promise<TGitSearchUser | null> {
+  const users = await searchUsers(username);
+  return users.find((u) => u.username === username) ?? null;
+}
+
+// ─── Merge Request APIs ──────────────────────────────────
+
+export interface TGitMergeRequest {
+  id: number;
+  iid: number;
+  title: string;
+  state: string;
+  web_url: string;
+  source_branch: string;
+  target_branch: string;
+}
+
+/**
+ * Create a Merge Request on TGit.
+ */
+export async function createMergeRequest(
+  projectId: string,
+  sourceBranch: string,
+  targetBranch: string,
+  title: string,
+  description?: string,
+  reviewerIds?: number[],
+): Promise<TGitMergeRequest> {
+  const body: Record<string, unknown> = {
+    source_branch: sourceBranch,
+    target_branch: targetBranch,
+    title,
+  };
+  if (description) {
+    body.description = description;
+  }
+  if (reviewerIds && reviewerIds.length > 0) {
+    body.reviewer_ids = reviewerIds;
+  }
+  const resp = await tgitFetch(`/projects/${projectId}/merge_requests`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+  return resp.json() as Promise<TGitMergeRequest>;
+}

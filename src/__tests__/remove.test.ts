@@ -11,7 +11,18 @@ vi.mock('../config.js', () => ({
 }));
 
 vi.mock('../utils/git.js', () => ({
-  pushRepo: vi.fn(),
+  pullRepo: vi.fn(),
+  pushRepoBranch: vi.fn().mockResolvedValue(true),
+  generateBranchName: vi.fn().mockReturnValue('teamai/push/test/20260305-120000'),
+}));
+
+vi.mock('../utils/tgit-api.js', () => ({
+  createMergeRequest: vi.fn().mockResolvedValue({ web_url: 'https://git.woa.com/mr/1' }),
+  getUserByUsername: vi.fn(),
+}));
+
+vi.mock('../utils/repo-url.js', () => ({
+  parseRepoInput: vi.fn().mockReturnValue({ projectId: 'test%2Frepo' }),
 }));
 
 vi.mock('../utils/logger.js', () => ({

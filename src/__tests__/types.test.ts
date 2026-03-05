@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   MemberConfigSchema,
+  TeamaiConfigSchema,
 } from '../types.js';
 
 describe('MemberConfigSchema', () => {
@@ -44,5 +45,33 @@ describe('MemberConfigSchema', () => {
     // Zod by default passes through unknown keys, but result type should not include role
     expect(result.username).toBe('alice');
     expect(result.registeredAt).toBe('2025-01-01T00:00:00.000Z');
+  });
+});
+
+describe('TeamaiConfigSchema reviewers', () => {
+  const minConfig = {
+    team: 'my-team',
+    repo: 'https://git.woa.com/team/repo.git',
+  };
+
+  it('should default reviewers to empty array when not provided', () => {
+    const result = TeamaiConfigSchema.parse(minConfig);
+    expect(result.reviewers).toEqual([]);
+  });
+
+  it('should accept an explicit reviewers list', () => {
+    const result = TeamaiConfigSchema.parse({
+      ...minConfig,
+      reviewers: ['alice', 'bob'],
+    });
+    expect(result.reviewers).toEqual(['alice', 'bob']);
+  });
+
+  it('should accept empty reviewers array', () => {
+    const result = TeamaiConfigSchema.parse({
+      ...minConfig,
+      reviewers: [],
+    });
+    expect(result.reviewers).toEqual([]);
   });
 });

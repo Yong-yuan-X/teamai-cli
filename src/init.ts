@@ -4,10 +4,10 @@ import readline from 'node:readline';
 import { saveLocalConfig, loadTeamConfig } from './config.js';
 import { injectHooksToAllTools } from './hooks.js';
 import { cloneRepo, configureGitUser } from './utils/git.js';
-import { pushRepo } from './utils/git.js';
+import { pushRepoDirectly } from './utils/git.js';
 import { verifyToken, getCurrentUser, getProject, isRepoEmpty, createProject, getNamespaceId } from './utils/tgit-api.js';
 import { parseRepoInput, type RepoInfo } from './utils/repo-url.js';
-import { ensureDir, writeFile, pathExists, expandHome } from './utils/fs.js';
+import { ensureDir, writeFile, pathExists, expandHome, readFileSafe } from './utils/fs.js';
 import { log, spinner } from './utils/logger.js';
 import { TEAMAI_HOME, type GlobalOptions, type LocalConfig } from './types.js';
 
@@ -162,7 +162,7 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
 
     if (!options.dryRun) {
       try {
-        await pushRepo(localPath, `[teamai] Register member: ${user.username}`, [
+        await pushRepoDirectly(localPath, `[teamai] Register member: ${user.username}`, [
           'members/',
           'teamai.yaml',
           'skills/.gitkeep',
@@ -179,6 +179,39 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
     }
   } else {
     log.info(`Member ${user.username} already registered`);
+  }
+
+  // Step 5.5: Configure default MR reviewers
+  const configureReviewers = await askQuestion('\nWould you like to configure default MR reviewers? [y/N] ');
+  if (configureReviewers.toLowerCase() === 'y') {
+    const reviewerInput = await askQuestion('Reviewers (comma-separated usernames): ');
+    const reviewers = reviewerInput
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (reviewers.length > 0) {
+      // Update teamai.yaml with reviewers
+      const configPath = path.join(localPath, 'teamai.yaml');
+      const configContent = await readFileSafe(configPath);
+      if (configContent) {
+        const configData = YAML.parse(configContent) as Record<string, unknown>;
+        configData.reviewers = reviewers;
+        await writeFile(configPath, YAML.stringify(configData));
+        log.success(`Configured ${reviewers.length} reviewer(s): ${reviewers.join(', ')}`);
+
+        if (!options.dryRun) {
+          try {
+            await pushRepoDirectly(localPath, `[teamai] Configure reviewers: ${reviewers.join(', ')}`, [
+              'teamai.yaml',
+            ]);
+            log.success('Reviewer config pushed to team repo');
+          } catch (e) {
+            log.warn(`Push failed (you can push manually later): ${(e as Error).message}`);
+          }
+        }
+      }
+    }
   }
 
   // Step 6: Save local config

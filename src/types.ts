@@ -27,6 +27,7 @@ export const TeamaiConfigSchema = z.object({
   team: z.string(),
   description: z.string().default(''),
   repo: z.string(),
+  reviewers: z.array(z.string()).default([]),
   sharing: SharingConfigSchema.default({}),
   toolPaths: z.record(z.string(), ToolPathsSchema).default({
     claude: { skills: '.claude/skills', rules: '.claude/rules', settings: '.claude/settings.json', claudemd: '.claude/CLAUDE.md' },
