@@ -51,7 +51,7 @@ async function resolveRepo(info: RepoInfo): Promise<string> {
       spin.succeed(`Repo ${info.owner}/${info.repo} exists (empty, ready to use)`);
     } else {
       // Check if repo is already a teamai repo (has teamai.yaml)
-      const isTeamaiRepo = await fileExistsInRepo(info.projectId, 'teamai.yaml');
+      const isTeamaiRepo = await fileExistsInRepo(info.projectId, 'teamai.yaml', project.default_branch);
       if (isTeamaiRepo) {
         spin.succeed(`Repo ${info.owner}/${info.repo} is an existing teamai repo`);
       } else {
@@ -108,13 +108,20 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
 
   // Step 3: Clone or link repo
   const defaultLocalPath = path.join(process.env.HOME ?? '', '.teamai', 'team-repo');
-  let localPath = await askQuestion(`Local clone path [${defaultLocalPath}]: `);
-  if (!localPath) localPath = defaultLocalPath;
-  localPath = expandHome(localPath);
+  let localPath: string;
 
-  if (await pathExists(localPath)) {
+  if (await pathExists(expandHome(defaultLocalPath))) {
+    // Existing clone found at default location — skip prompt
+    localPath = expandHome(defaultLocalPath);
     log.info(`Repo already exists at ${localPath}, using existing clone`);
   } else {
+    // No existing clone — ask for path
+    let inputPath = await askQuestion(`Local clone path [${defaultLocalPath}]: `);
+    if (!inputPath) inputPath = defaultLocalPath;
+    localPath = expandHome(inputPath);
+  }
+
+  if (!await pathExists(localPath)) {
     const cloneSpin = spinner('Cloning team repo...').start();
     try {
       await cloneRepo(repoUrl, localPath);
