@@ -230,11 +230,18 @@ export async function createMergeRequest(
     body.description = description;
   }
   if (reviewerIds && reviewerIds.length > 0) {
-    body.reviewer_ids = reviewerIds;
+    // TGit v3 API uses "reviewers" (comma-separated ID string), not "reviewer_ids"
+    body.reviewers = reviewerIds.join(',');
   }
   const resp = await tgitFetch(`/projects/${projectId}/merge_requests`, {
     method: 'POST',
     body: JSON.stringify(body),
   });
-  return resp.json() as Promise<TGitMergeRequest>;
+  const mr = await resp.json() as TGitMergeRequest;
+  // TGit v3 API may not return web_url; construct it from projectId and iid
+  if (!mr.web_url && mr.iid != null) {
+    const decodedProject = decodeURIComponent(projectId);
+    mr.web_url = `https://git.woa.com/${decodedProject}/-/merge_requests/${mr.iid}`;
+  }
+  return mr;
 }

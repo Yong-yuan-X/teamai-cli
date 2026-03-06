@@ -121,7 +121,7 @@ describe('TGit API', () => {
       );
 
       const body = JSON.parse((mockFetch.mock.calls[0][1] as RequestInit).body as string);
-      expect(body.reviewer_ids).toEqual([100, 200]);
+      expect(body.reviewers).toBe('100,200');
       expect(body.description).toBe('desc');
     });
   });
