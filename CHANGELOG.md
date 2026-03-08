@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.3] - 2026-03-08
+
+### Fixed
+- `teamai init` clone path 不再交互确认，直接使用默认路径 `~/.teamai/team-repo`
+- 修复仓库存在却误判为"不存在"的问题：git 对象统计中的 `reused 404` 被误匹配为 HTTP 404
+
 ## [0.2.2] - 2026-03-07
 
 ### Fixed

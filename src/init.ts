@@ -71,9 +71,8 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
     localPath = expandHome(defaultLocalPath);
     log.info(`Repo already exists at ${localPath}, using existing clone`);
   } else {
-    let inputPath = await askQuestion(`Local clone path [${defaultLocalPath}]: `);
-    if (!inputPath) inputPath = defaultLocalPath;
-    localPath = expandHome(inputPath);
+    localPath = expandHome(defaultLocalPath);
+    log.info(`Clone path: ${localPath}`);
   }
 
   if (!await pathExists(localPath)) {

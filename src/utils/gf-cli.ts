@@ -299,8 +299,8 @@ export class RepoNotFoundError extends Error {
 export function gfRepoClone(repo: string, localPath: string): void {
   const result = gfExec(['repo', 'clone', repo, localPath]);
   const allOutput = `${result.stderr} ${result.stdout}`;
-  // gf may return exit 0 even when the repo is not found, so always check output
-  if (allOutput.includes('404') || allOutput.includes('not found') || allOutput.includes('不存在') || allOutput.includes('未在工蜂找到')) {
+  // Only match gf's own "not found" message, not git's object stats (e.g. "reused 404")
+  if (allOutput.includes('未在工蜂找到') || allOutput.includes('不存在')) {
     throw new RepoNotFoundError(repo);
   }
   if (result.status !== 0) {

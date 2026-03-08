@@ -165,7 +165,7 @@ describe('init', () => {
 
       mockGfRepoClone.mockImplementation(() => {});
 
-      questionAnswers = ['', 'n'];
+      questionAnswers = ['n'];
 
       await init({ repo: 'HyperAI/teamai-test' });
 
@@ -188,7 +188,7 @@ describe('init', () => {
         cloneDone = true;
       });
 
-      questionAnswers = ['', 'n'];
+      questionAnswers = ['n'];
 
       await init({ repo: 'HyperAI/existing-repo' });
 
@@ -220,8 +220,8 @@ describe('init', () => {
         cloneDone = true;
       });
 
-      // Answers: local clone path, create repo confirm (Y), configure reviewers (n)
-      questionAnswers = ['', 'Y', 'n'];
+      // Answers: create repo confirm (Y), configure reviewers (n)
+      questionAnswers = ['Y', 'n'];
 
       await init({ repo: 'HyperAI/new-repo' });
 
@@ -237,8 +237,8 @@ describe('init', () => {
 
       pathExistsFn = () => false;
 
-      // Answers: local clone path, decline creation (n)
-      questionAnswers = ['', 'n'];
+      // Answers: decline creation (n)
+      questionAnswers = ['n'];
 
       await init({ repo: 'HyperAI/new-repo' });
 
@@ -255,8 +255,8 @@ describe('init', () => {
 
       pathExistsFn = () => false;
 
-      // Answers: local clone path, confirm creation (Y)
-      questionAnswers = ['', 'Y'];
+      // Answers: confirm creation (Y)
+      questionAnswers = ['Y'];
 
       await init({ repo: 'HyperAI/new-repo' });
 
@@ -273,7 +273,7 @@ describe('init', () => {
         throw new Error('gf repo clone failed: network error');
       });
 
-      questionAnswers = [''];
+      questionAnswers = [];
 
       await init({ repo: 'HyperAI/broken-repo' });
 
