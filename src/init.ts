@@ -3,9 +3,9 @@ import path from 'node:path';
 import readline from 'node:readline';
 import { saveLocalConfig, loadTeamConfig } from './config.js';
 import { injectHooksToAllTools } from './hooks.js';
-import { configureGitUser } from './utils/git.js';
+import { configureGitUser, initRepo } from './utils/git.js';
 import { pushRepoDirectly } from './utils/git.js';
-import { ensureGfInstalled, ensureAuthenticated, gfRepoClone } from './utils/gf-cli.js';
+import { ensureGfInstalled, ensureAuthenticated, gfRepoClone, gfCreateRepo, RepoNotFoundError } from './utils/gf-cli.js';
 import { parseRepoInput } from './utils/repo-url.js';
 import { ensureDir, writeFile, pathExists, expandHome, readFileSafe } from './utils/fs.js';
 import { log, spinner } from './utils/logger.js';
@@ -83,8 +83,47 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
       gfRepoClone(`${repoInfo.owner}/${repoInfo.repo}`, localPath);
       cloneSpin.succeed('Team repo cloned');
     } catch (e) {
-      cloneSpin.fail(`Clone failed: ${(e as Error).message}`);
-      process.exit(1);
+      if (e instanceof RepoNotFoundError) {
+        cloneSpin.info(`Repo ${repoInfo.owner}/${repoInfo.repo} does not exist on TGit`);
+        const answer = await askQuestion(`Create repo ${repoInfo.owner}/${repoInfo.repo}? [Y/n] `);
+        if (answer && answer.toLowerCase() !== 'y') {
+          log.error('Aborted. Please provide an existing repo or confirm creation.');
+          process.exit(1);
+        }
+        const createSpin = spinner(`Creating repo ${repoInfo.owner}/${repoInfo.repo}...`).start();
+        try {
+          await gfCreateRepo(repoInfo.owner, repoInfo.repo);
+          createSpin.succeed(`Repo ${repoInfo.owner}/${repoInfo.repo} created`);
+        } catch (ce) {
+          createSpin.fail(`Failed to create repo: ${(ce as Error).message}`);
+          process.exit(1);
+        }
+        // Retry clone after creation
+        const retryCloneSpin = spinner('Cloning newly created repo...').start();
+        try {
+          gfRepoClone(`${repoInfo.owner}/${repoInfo.repo}`, localPath);
+          retryCloneSpin.succeed('Team repo cloned');
+        } catch (ce) {
+          retryCloneSpin.fail(`Clone failed: ${(ce as Error).message}`);
+          process.exit(1);
+        }
+      } else {
+        cloneSpin.fail(`Clone failed: ${(e as Error).message}`);
+        process.exit(1);
+      }
+    }
+
+    // Cloning an empty remote repo may succeed without creating the local directory.
+    // Fall back to git init + add remote so subsequent steps can proceed.
+    if (!await pathExists(localPath)) {
+      const initSpin = spinner('Initializing empty repo...').start();
+      try {
+        await initRepo(repoInfo.httpsUrl, localPath);
+        initSpin.succeed('Empty repo initialized');
+      } catch (e) {
+        initSpin.fail(`Init failed: ${(e as Error).message}`);
+        process.exit(1);
+      }
     }
   }
 

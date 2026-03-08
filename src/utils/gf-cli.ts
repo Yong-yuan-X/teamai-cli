@@ -220,22 +220,91 @@ export function ensureAuthenticated(): string {
 // ─── Repo operations ─────────────────────────────────────
 
 /**
+ * Retrieve the OAuth token that gf stored in the git credential helper.
+ * Returns null if no credential is found.
+ */
+export function gfGetOAuthToken(): string | null {
+  try {
+    const result = execSync(
+      'printf "protocol=https\\nhost=git.woa.com\\n" | git credential fill',
+      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'], timeout: 5_000 },
+    );
+    const match = result.match(/^password=(.+)$/m);
+    return match?.[1]?.trim() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Create a repo on TGit using the REST API.
+ * Uses the OAuth token from gf's credential store with Bearer auth.
+ */
+export async function gfCreateRepo(owner: string, repo: string): Promise<void> {
+  const token = gfGetOAuthToken();
+  if (!token) {
+    throw new Error('Cannot retrieve OAuth token. Please run `gf auth login` first.');
+  }
+
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+  };
+
+  // Look up namespace ID for the owner (group or user)
+  const nsResp = await fetch(
+    `https://git.woa.com/api/v3/namespaces?search=${encodeURIComponent(owner)}`,
+    { headers: authHeaders },
+  );
+  if (!nsResp.ok) {
+    throw new Error(`Failed to look up namespace "${owner}": ${nsResp.status}`);
+  }
+  const namespaces = (await nsResp.json()) as Array<{ id: number; path: string }>;
+  const ns = namespaces.find((n) => n.path.toLowerCase() === owner.toLowerCase());
+
+  const body: Record<string, unknown> = { name: repo };
+  if (ns) {
+    body.namespace_id = ns.id;
+  }
+
+  const createResp = await fetch(
+    'https://git.woa.com/api/v3/projects',
+    {
+      method: 'POST',
+      headers: authHeaders,
+      body: JSON.stringify(body),
+    },
+  );
+  if (!createResp.ok) {
+    const errBody = await createResp.text().catch(() => '');
+    throw new Error(`Failed to create repo: ${createResp.status} ${errBody}`);
+  }
+}
+
+/** Error subclass indicating the remote repo was not found. */
+export class RepoNotFoundError extends Error {
+  constructor(repo: string) {
+    super(`Repo "${repo}" not found on TGit.`);
+    this.name = 'RepoNotFoundError';
+  }
+}
+
+/**
  * Clone a repo using `gf repo clone`.
  * The remote URL will have the OAuth token embedded, so subsequent
  * git pull/push via simple-git will work without extra auth.
+ *
+ * Throws RepoNotFoundError when the remote repo does not exist.
  */
 export function gfRepoClone(repo: string, localPath: string): void {
   const result = gfExec(['repo', 'clone', repo, localPath]);
+  const allOutput = `${result.stderr} ${result.stdout}`;
+  // gf may return exit 0 even when the repo is not found, so always check output
+  if (allOutput.includes('404') || allOutput.includes('not found') || allOutput.includes('不存在') || allOutput.includes('未在工蜂找到')) {
+    throw new RepoNotFoundError(repo);
+  }
   if (result.status !== 0) {
-    const errMsg = result.stderr || result.stdout;
-    // Check for common "not found" patterns
-    if (errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('不存在')) {
-      throw new Error(
-        `Repo "${repo}" not found on TGit.\n` +
-        `  Create it at: https://git.woa.com/projects/new`,
-      );
-    }
-    throw new Error(`gf repo clone failed: ${errMsg}`);
+    throw new Error(`gf repo clone failed: ${result.stderr || result.stdout}`);
   }
 }
 

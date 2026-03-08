@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.2] - 2026-03-07
+
+### Fixed
+- `teamai init` 不存在的远程仓库自动创建：检测到仓库不存在时询问用户确认，通过 TGit API 自动创建
+- `teamai init` 空仓库克隆兜底：克隆空仓库后目录不存在时，自动 `git init` + 配置 remote
+- `pushRepoDirectly` 首次 push 设置 upstream (`git push -u origin <branch>`)，兼容 main/master 等分支名
+
+### Added
+- `gfGetOAuthToken()` 从 git credential store 提取 OAuth token
+- `gfCreateRepo()` 通过 TGit REST API (Bearer auth) 创建远程仓库
+- `RepoNotFoundError` 错误类型，区分"仓库不存在"和其他克隆错误
+- `initRepo()` 本地 git 初始化 + 添加 remote 的工具函数
+- `init.test.ts` 覆盖空仓库兜底、自动创建、用户拒绝、创建失败等场景
+
 ## [0.2.1] - 2026-03-07
 
 ### Fixed

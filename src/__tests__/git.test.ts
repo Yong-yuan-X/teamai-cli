@@ -9,10 +9,20 @@ const mockGit = {
   push: vi.fn(),
   checkout: vi.fn(),
   deleteLocalBranch: vi.fn(),
+  init: vi.fn(),
+  addRemote: vi.fn(),
+  addConfig: vi.fn(),
+  revparse: vi.fn().mockResolvedValue('main'),
 };
 
 vi.mock('simple-git', () => ({
   default: () => mockGit,
+}));
+
+vi.mock('fs-extra', () => ({
+  default: {
+    ensureDir: vi.fn(),
+  },
 }));
 
 vi.mock('../utils/logger.js', () => ({
@@ -26,7 +36,8 @@ vi.mock('../utils/logger.js', () => ({
   },
 }));
 
-import { generateBranchName, pushRepoBranch, pushRepoDirectly } from '../utils/git.js';
+import { generateBranchName, pushRepoBranch, pushRepoDirectly, initRepo, configureGitUser } from '../utils/git.js';
+import fse from 'fs-extra';
 
 describe('generateBranchName', () => {
   it('should produce teamai/push/<username>/<timestamp> format', () => {
@@ -91,14 +102,16 @@ describe('pushRepoDirectly', () => {
     vi.clearAllMocks();
   });
 
-  it('should add, commit, and push when there are staged changes', async () => {
+  it('should add, commit, and push with upstream when there are staged changes', async () => {
     mockGit.status.mockResolvedValue({ staged: ['file.txt'] });
+    mockGit.revparse.mockResolvedValue('main');
 
     await pushRepoDirectly('/repo', 'direct commit', ['file.txt']);
 
     expect(mockGit.add).toHaveBeenCalledWith(['file.txt']);
     expect(mockGit.commit).toHaveBeenCalledWith('direct commit');
-    expect(mockGit.push).toHaveBeenCalledWith();
+    expect(mockGit.revparse).toHaveBeenCalledWith(['--abbrev-ref', 'HEAD']);
+    expect(mockGit.push).toHaveBeenCalledWith(['-u', 'origin', 'main']);
   });
 
   it('should skip commit and push when nothing is staged', async () => {
@@ -109,5 +122,46 @@ describe('pushRepoDirectly', () => {
     expect(mockGit.add).toHaveBeenCalledWith(['file.txt']);
     expect(mockGit.commit).not.toHaveBeenCalled();
     expect(mockGit.push).not.toHaveBeenCalled();
+  });
+});
+
+describe('initRepo', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should create directory, init git repo, and add remote', async () => {
+    await initRepo('https://git.woa.com/team/repo.git', '/tmp/test-repo');
+
+    expect(fse.ensureDir).toHaveBeenCalledWith('/tmp/test-repo');
+    expect(mockGit.init).toHaveBeenCalled();
+    expect(mockGit.addRemote).toHaveBeenCalledWith('origin', 'https://git.woa.com/team/repo.git');
+  });
+});
+
+describe('configureGitUser', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should set user.name and user.email with default domain', async () => {
+    await configureGitUser('/repo', 'alice', 'Alice');
+
+    expect(mockGit.addConfig).toHaveBeenCalledWith('user.name', 'Alice');
+    expect(mockGit.addConfig).toHaveBeenCalledWith('user.email', 'alice@tencent.com');
+  });
+
+  it('should fall back to username when displayName is not provided', async () => {
+    await configureGitUser('/repo', 'bob');
+
+    expect(mockGit.addConfig).toHaveBeenCalledWith('user.name', 'bob');
+    expect(mockGit.addConfig).toHaveBeenCalledWith('user.email', 'bob@tencent.com');
+  });
+
+  it('should use custom email when provided', async () => {
+    await configureGitUser('/repo', 'charlie', 'Charlie', 'charlie@custom.com');
+
+    expect(mockGit.addConfig).toHaveBeenCalledWith('user.name', 'Charlie');
+    expect(mockGit.addConfig).toHaveBeenCalledWith('user.email', 'charlie@custom.com');
   });
 });

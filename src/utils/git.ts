@@ -1,8 +1,20 @@
+import fse from 'fs-extra';
 import simpleGit, { type SimpleGit } from 'simple-git';
 import { log } from './logger.js';
 
 export function createGit(basePath?: string): SimpleGit {
   return simpleGit(basePath ? { baseDir: basePath } : undefined);
+}
+
+/**
+ * Initialize an empty git repo at localPath and add the remote.
+ * Used as fallback when cloning an empty remote repo doesn't create the directory.
+ */
+export async function initRepo(remote: string, localPath: string): Promise<void> {
+  await fse.ensureDir(localPath);
+  const git = simpleGit({ baseDir: localPath });
+  await git.init();
+  await git.addRemote('origin', remote);
 }
 
 const DEFAULT_EMAIL_DOMAIN = 'tencent.com';
@@ -46,7 +58,9 @@ export async function pushRepoDirectly(localPath: string, message: string, files
     return;
   }
   await git.commit(message);
-  await git.push();
+  // Use --set-upstream for first push on repos initialized from empty remotes
+  const branch = (await git.revparse(['--abbrev-ref', 'HEAD'])).trim();
+  await git.push(['-u', 'origin', branch]);
 }
 
 /**
