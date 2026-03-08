@@ -51,15 +51,6 @@ program
   });
 
 program
-  .command('sync')
-  .description('Bidirectional sync (push + pull)')
-  .action(async () => {
-    const globalOpts = program.opts() as GlobalOptions;
-    const { sync } = await import('./sync.js');
-    await sync(globalOpts);
-  });
-
-program
   .command('status')
   .description('Show local vs team repo diff')
   .action(async () => {

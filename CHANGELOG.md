@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.4] - 2026-03-08
+
+### Removed
+- 删除 `teamai sync` 命令：该命令在 pull 阶段会无提示覆盖本地修改，存在数据丢失风险。请分别使用 `teamai push` 和 `teamai pull`
+
 ## [0.2.3] - 2026-03-08
 
 ### Fixed
