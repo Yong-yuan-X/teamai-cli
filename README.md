@@ -1,4 +1,4 @@
-# teamai — Team AI DevKit
+# teamai — 团队 AI 经验共享框架 TeamAI
 
 团队 AI 经验共享框架。自动在团队成员之间同步 skills、rules、docs、hooks 等 AI 工具配置。
 

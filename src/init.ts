@@ -135,7 +135,7 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
     log.warn('teamai.yaml not found in repo. Creating default config...');
     const defaultConfig = YAML.stringify({
       team: 'my-team',
-      description: 'Team AI DevKit shared resources',
+      description: 'TeamAI shared resources',
       repo: repoInfo.httpsUrl,
       sharing: {
         skills: { syncTargets: ['claude', 'codex', 'claude-internal', 'cursor', 'codebuddy'] },
