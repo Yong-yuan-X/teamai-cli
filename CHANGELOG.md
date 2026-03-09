@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.3.2] - 2026-03-09
+
+### Added
+- `teamai push`/`teamai status` 检测本地已修改的 rules，在差异扫描中标记 modified 状态 (!31)
+- 新增 `src/utils/fs.ts` 文件内容比对工具函数，支持跨工具目录的内容一致性检查
+- 新增 `fs-compare.test.ts`、`rules.test.ts`、`skills.test.ts`、`skip-uninstalled-tools.test.ts` 测试文件
+
+### Fixed
+- `teamai pull` 跳过未安装的 AI 工具，不再向不存在的工具目录同步资源 (!34)
+- `teamai push` 扫描改为跨所有工具目录比对内容，修复时间戳比较的 timing bug (!33)
+- `teamai doctor` 不再误报 Cursor hook 缺失 (!32)
+
+### Changed
+- 项目名称由 "Team AI DevKit" 更名为 "团队 AI 经验共享框架 TeamAI" (!35)
+
+## [0.3.1] - 2026-03-08
+
+### Added
+- `teamai pull` env 变量注入改为 source 文件引用方式，避免直接修改 shell profile (!30)
+- env push 改为 deferred 模式，减少不必要的 MR 创建
+
+## [0.3.0] - 2026-03-08
+
+### Changed
+- **重构资源类型**：移除 hooks 和 instincts 资源类型，简化架构 (!26)
+
+### Fixed
+- `teamai init` 处理不存在和空仓库的场景 (!27)
+- `teamai init` clone path 修复及误判仓库不存在的问题 (!28)
+
+### Removed
+- 删除 `teamai sync` 命令（不安全的双向同步） (!29)
+- 删除 `src/resources/hooks-config.ts` 和 `src/resources/instincts.ts`
+
 ## [0.2.4] - 2026-03-08
 
 ### Removed
