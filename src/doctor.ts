@@ -4,13 +4,16 @@ import { pathExists, readFileSafe } from './utils/fs.js';
 import { isGfInstalled, gfIsAuthenticated } from './utils/gf-cli.js';
 import { log } from './utils/logger.js';
 import type { GlobalOptions } from './types.js';
-import { TeamaiConfigSchema, TEAMAI_ENV_START, type TeamaiConfig } from './types.js';
+import { TeamaiConfigSchema, TEAMAI_ENV_START, TEAMAI_HOOK_DESCRIPTION_PREFIX, type TeamaiConfig } from './types.js';
 
 interface Check {
   name: string;
   check: () => Promise<boolean>;
   fix?: string;
 }
+
+// Tools that use Cursor hooks.json format (no description field)
+const CURSOR_TOOLS = new Set(['cursor']);
 
 function buildHookChecks(toolPaths: TeamaiConfig['toolPaths']): Check[] {
   const checks: Check[] = [];
@@ -22,7 +25,11 @@ function buildHookChecks(toolPaths: TeamaiConfig['toolPaths']): Check[] {
         const settingsPath = path.join(process.env.HOME ?? '', paths.settings!);
         if (!await pathExists(settingsPath)) return false;
         const content = await readFileSafe(settingsPath);
-        return content?.includes('[teamai]') ?? false;
+        // Cursor hooks.json has no description field; detect by command content
+        if (CURSOR_TOOLS.has(tool)) {
+          return content?.includes('teamai pull') ?? false;
+        }
+        return content?.includes(TEAMAI_HOOK_DESCRIPTION_PREFIX) ?? false;
       },
       fix: 'Run `teamai init` to inject hooks',
     });
