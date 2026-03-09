@@ -117,6 +117,13 @@ export class RulesHandler extends ResourceHandler {
     const home = process.env.HOME ?? '';
     for (const [tool, toolPath] of Object.entries(teamConfig.toolPaths)) {
       if (!toolPath.rules) continue;
+
+      // Skip tools that are not installed
+      if (!await ResourceHandler.isToolInstalled(toolPath.rules)) {
+        log.debug(`Skipping rule sync for ${tool}: tool not installed`);
+        continue;
+      }
+
       const destDir = path.join(home, toolPath.rules);
       await ensureDir(destDir);
       const dest = path.join(destDir, `${item.name}.md`);
@@ -181,6 +188,9 @@ export class RulesHandler extends ResourceHandler {
     const home = process.env.HOME ?? '';
     for (const [tool, toolPath] of Object.entries(teamConfig.toolPaths)) {
       if (!toolPath.claudemd || !toolPath.rules) continue;
+
+      // Skip tools that are not installed
+      if (!await ResourceHandler.isToolInstalled(toolPath.rules)) continue;
 
       const ruleRefs = rules.map((r) => `- ~/${toolPath.rules}/${r.name}.md`);
       const rulesBlock = [

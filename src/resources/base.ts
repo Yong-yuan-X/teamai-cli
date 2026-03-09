@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { ResourceType, ResourceItem, ResourceDiff, TeamaiConfig, LocalConfig } from '../types.js';
-import { readFileSafe, writeFile, ensureDir } from '../utils/fs.js';
+import { readFileSafe, writeFile, ensureDir, pathExists } from '../utils/fs.js';
 
 const TOMBSTONE_FILE = '.removed';
 
@@ -56,6 +56,17 @@ export abstract class ResourceHandler {
     teamConfig: TeamaiConfig,
     localConfig: LocalConfig,
   ): Promise<string[]>;
+
+  /**
+   * Check if an AI tool is installed by verifying its root directory exists.
+   * e.g. for toolPath ".codebuddy/skills", checks if ~/.codebuddy/ exists.
+   * This prevents creating directories for tools the user hasn't installed.
+   */
+  static async isToolInstalled(toolPath: string): Promise<boolean> {
+    const home = process.env.HOME ?? '';
+    const toolRoot = path.join(home, toolPath.split('/')[0]);
+    return pathExists(toolRoot);
+  }
 
   /**
    * Read the tombstone file (`<type>/.removed`) from the team repo.

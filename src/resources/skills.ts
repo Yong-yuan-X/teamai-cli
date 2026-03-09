@@ -114,6 +114,12 @@ export class SkillsHandler extends ResourceHandler {
       const toolPath = teamConfig.toolPaths[tool];
       if (!toolPath) continue;
 
+      // Skip tools that are not installed
+      if (!await ResourceHandler.isToolInstalled(toolPath.skills)) {
+        log.debug(`Skipping skill sync for ${tool}: tool not installed`);
+        continue;
+      }
+
       const dest = path.join(process.env.HOME ?? '', toolPath.skills, item.name);
       try {
         await copyDir(item.sourcePath, dest);
