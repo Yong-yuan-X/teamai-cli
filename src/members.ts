@@ -2,6 +2,7 @@ import YAML from 'yaml';
 import path from 'node:path';
 import { requireInit } from './config.js';
 import { readFileSafe, listFiles } from './utils/fs.js';
+import { pullRepo } from './utils/git.js';
 import { log } from './utils/logger.js';
 import { MemberConfigSchema } from './types.js';
 import type { GlobalOptions, MemberConfig } from './types.js';
@@ -23,7 +24,11 @@ export async function getMemberConfig(repoPath: string, username: string): Promi
 
 export async function listMembers(options: GlobalOptions): Promise<void> {
   const { localConfig } = await requireInit();
-  const membersDir = path.join(localConfig.repo.localPath, 'members');
+  const repoPath = localConfig.repo.localPath;
+
+  await pullRepo(repoPath);
+
+  const membersDir = path.join(repoPath, 'members');
   const files = await listFiles(membersDir);
   const yamlFiles = files.filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'));
 

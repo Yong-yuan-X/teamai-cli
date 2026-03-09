@@ -187,8 +187,10 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
     log.info(`Member ${username} already registered`);
   }
 
-  // Step 5.5: Configure default MR reviewers (only for new members / fresh setup)
-  if (isNewMember) {
+  // Step 5.5: Configure default MR reviewers (only for fresh setup with no reviewers yet)
+  const currentConfig = await loadTeamConfig(localPath);
+  const hasReviewers = currentConfig?.reviewers && currentConfig.reviewers.length > 0;
+  if (isNewMember && !hasReviewers) {
     const configureReviewers = await askQuestion('\nWould you like to configure default MR reviewers? [y/N] ');
     if (configureReviewers.toLowerCase() === 'y') {
       const reviewerInput = await askQuestion('Reviewers (comma-separated usernames): ');

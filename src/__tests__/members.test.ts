@@ -9,6 +9,10 @@ vi.mock('../config.js', () => ({
   requireInit: vi.fn(),
 }));
 
+vi.mock('../utils/git.js', () => ({
+  pullRepo: vi.fn().mockResolvedValue('Already up to date.'),
+}));
+
 vi.mock('../utils/logger.js', () => ({
   log: {
     info: vi.fn(),

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.5] - 2026-03-09
+
+### Fixed
+- `teamai members` 读取前先 `git pull`，确保能看到远程新注册的成员
+- `teamai init` 已配置 reviewer 的团队仓库，新成员加入时不再重复提示配置 reviewer
+
 ## [0.3.3] - 2026-03-09
 
 ### Fixed
