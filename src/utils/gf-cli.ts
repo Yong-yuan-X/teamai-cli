@@ -13,6 +13,16 @@ const GF_BIN_PATH = path.join(GF_INSTALL_DIR, 'gf', 'bin', 'gf');
 /** Download base URL for gf CLI tarballs */
 const GF_DOWNLOAD_BASE = 'http://mirrors.tencent.com/repository/generic/gongfeng-cli/files/channels/stable';
 
+// ─── Shell helpers ───────────────────────────────────────
+
+/**
+ * Shell-quote a string using single quotes.
+ * Preserves literal newlines, spaces, and special characters.
+ */
+function shellQuote(s: string): string {
+  return "'" + s.replace(/'/g, "'\\''") + "'";
+}
+
 // ─── Core helpers ────────────────────────────────────────
 
 /**
@@ -352,11 +362,11 @@ export function gfMrCreate(opts: GfMrCreateOptions): string {
     '-R', opts.repo,
     '-s', opts.source,
     '-T', opts.target,
-    '-t', JSON.stringify(opts.title),
+    '-t', shellQuote(opts.title),
   ];
 
   if (opts.description) {
-    args.push('-d', JSON.stringify(opts.description));
+    args.push('-d', shellQuote(opts.description));
   }
 
   if (opts.reviewers && opts.reviewers.length > 0) {
