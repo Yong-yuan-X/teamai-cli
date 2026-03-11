@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.10] - 2026-03-11
+
+### Added
+- Rules 子目录支持：`teamai push`/`pull` 递归扫描 rules 目录，支持按语言/类别组织规则文件（如 `common/`、`python/`、`golang/`）(!52)
+- 新增 `listFilesRecursive()` 工具函数用于递归文件遍历
+- `teamai push` 默认显示每个资源的源文件路径
+
+### Changed
+- CLAUDE.md 引用从逐文件列举改为目录级引用（`~/.claude/rules/`），减少上下文占用
+- CLAUDE.md 新增 docs 目录引用（`~/.teamai/docs/`）
+- `teamai pull` 日志从 "Merged N rule(s) into CLAUDE.md" 改为 "Synced N rule(s)"
+
 ## [0.3.9] - 2026-03-10
 
 ### Fixed
