@@ -98,6 +98,29 @@ export async function listFiles(dirPath: string): Promise<string[]> {
 }
 
 /**
+ * List files recursively, returning relative paths (e.g. "sub/file.md").
+ */
+export async function listFilesRecursive(dirPath: string): Promise<string[]> {
+  const expanded = expandHome(dirPath);
+  if (!await fse.pathExists(expanded)) return [];
+  const results: string[] = [];
+  await _walkFiles(expanded, '', results);
+  return results;
+}
+
+async function _walkFiles(base: string, prefix: string, results: string[]): Promise<void> {
+  const entries = await fse.readdir(path.join(base, prefix), { withFileTypes: true });
+  for (const entry of entries) {
+    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isFile()) {
+      results.push(rel);
+    } else if (entry.isDirectory()) {
+      await _walkFiles(base, rel, results);
+    }
+  }
+}
+
+/**
  * Check if a path exists
  */
 export async function pathExists(p: string): Promise<boolean> {

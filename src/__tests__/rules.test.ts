@@ -222,3 +222,176 @@ describe('RulesHandler.scanLocalForPush — modified rule detection', () => {
     expect(items.find((i) => i.name === 'my-rule')).toBeDefined();
   });
 });
+
+describe('RulesHandler.scanLocalForPush — subdirectory support', () => {
+  let tmpDir: string;
+  let homeDir: string;
+  let handler: RulesHandler;
+  let teamConfig: TeamaiConfig;
+  let localConfig: LocalConfig;
+
+  beforeEach(async () => {
+    tmpDir = await fse.mkdtemp(path.join(os.tmpdir(), 'teamai-rules-subdir-'));
+    homeDir = path.join(tmpDir, 'home');
+
+    const repoPath = path.join(tmpDir, 'team-repo');
+    await fse.ensureDir(path.join(repoPath, 'rules'));
+    await fse.ensureDir(path.join(homeDir, '.claude', 'rules'));
+
+    vi.stubEnv('HOME', homeDir);
+
+    handler = new RulesHandler();
+
+    teamConfig = {
+      team: 'test',
+      description: '',
+      repo: 'https://git.woa.com/test/repo.git',
+      sharing: { skills: { syncTargets: [] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+      toolPaths: {
+        claude: { skills: '.claude/skills', rules: '.claude/rules', settings: '.claude/settings.json', claudemd: '.claude/CLAUDE.md' },
+      },
+    };
+
+    localConfig = {
+      repo: { localPath: repoPath, remote: 'https://git.woa.com/test/repo.git' },
+      username: 'testuser',
+    };
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await fse.remove(tmpDir);
+  });
+
+  it('should detect new rules in subdirectories', async () => {
+    await fse.ensureDir(path.join(homeDir, '.claude/rules/common'));
+    await fse.writeFile(path.join(homeDir, '.claude/rules/common/coding-standards.md'), 'rule content');
+
+    const items = await handler.scanLocalForPush(teamConfig, localConfig);
+    const item = items.find((i) => i.name === 'common/coding-standards');
+    expect(item).toBeDefined();
+    expect(item!.status).toBe('new');
+    expect(item!.relativePath).toBe('rules/common/coding-standards.md');
+  });
+
+  it('should detect modified rules in subdirectories', async () => {
+    const teamRulesDir = path.join(localConfig.repo.localPath, 'rules');
+    await fse.ensureDir(path.join(teamRulesDir, 'python'));
+    await fse.writeFile(path.join(teamRulesDir, 'python/style.md'), 'old style');
+
+    await fse.ensureDir(path.join(homeDir, '.claude/rules/python'));
+    await fse.writeFile(path.join(homeDir, '.claude/rules/python/style.md'), 'new style');
+
+    const items = await handler.scanLocalForPush(teamConfig, localConfig);
+    const item = items.find((i) => i.name === 'python/style');
+    expect(item).toBeDefined();
+    expect(item!.status).toBe('modified');
+  });
+
+  it('should skip unchanged rules in subdirectories', async () => {
+    const teamRulesDir = path.join(localConfig.repo.localPath, 'rules');
+    await fse.ensureDir(path.join(teamRulesDir, 'golang'));
+    await fse.writeFile(path.join(teamRulesDir, 'golang/errors.md'), 'same content');
+
+    await fse.ensureDir(path.join(homeDir, '.claude/rules/golang'));
+    await fse.writeFile(path.join(homeDir, '.claude/rules/golang/errors.md'), 'same content');
+
+    const items = await handler.scanLocalForPush(teamConfig, localConfig);
+    const names = items.map((i) => i.name);
+    expect(names).not.toContain('golang/errors');
+  });
+
+  it('should detect rules in multiple subdirectories at once', async () => {
+    await fse.ensureDir(path.join(homeDir, '.claude/rules/common'));
+    await fse.ensureDir(path.join(homeDir, '.claude/rules/python'));
+    await fse.ensureDir(path.join(homeDir, '.claude/rules/golang'));
+    await fse.writeFile(path.join(homeDir, '.claude/rules/common/general.md'), 'general');
+    await fse.writeFile(path.join(homeDir, '.claude/rules/python/style.md'), 'python style');
+    await fse.writeFile(path.join(homeDir, '.claude/rules/golang/errors.md'), 'golang errors');
+    // Also a root-level rule
+    await fse.writeFile(path.join(homeDir, '.claude/rules/top-level.md'), 'top level');
+
+    const items = await handler.scanLocalForPush(teamConfig, localConfig);
+    const names = items.map((i) => i.name).sort();
+    expect(names).toEqual(['common/general', 'golang/errors', 'python/style', 'top-level']);
+  });
+
+  it('should handle tombstoned rules in subdirectories', async () => {
+    const teamRulesDir = path.join(localConfig.repo.localPath, 'rules');
+    await fse.ensureDir(path.join(teamRulesDir, 'common'));
+    await fse.writeFile(path.join(teamRulesDir, 'common/old-rule.md'), 'old');
+    await fse.writeFile(path.join(teamRulesDir, '.removed'), 'common/old-rule\n');
+
+    await fse.ensureDir(path.join(homeDir, '.claude/rules/common'));
+    await fse.writeFile(path.join(homeDir, '.claude/rules/common/old-rule.md'), 'modified');
+
+    const items = await handler.scanLocalForPush(teamConfig, localConfig);
+    const names = items.map((i) => i.name);
+    expect(names).not.toContain('common/old-rule');
+  });
+});
+
+describe('RulesHandler.scanTeamForPull — subdirectory support', () => {
+  let tmpDir: string;
+  let homeDir: string;
+  let handler: RulesHandler;
+  let teamConfig: TeamaiConfig;
+  let localConfig: LocalConfig;
+
+  beforeEach(async () => {
+    tmpDir = await fse.mkdtemp(path.join(os.tmpdir(), 'teamai-rules-pull-subdir-'));
+    homeDir = path.join(tmpDir, 'home');
+
+    const repoPath = path.join(tmpDir, 'team-repo');
+    await fse.ensureDir(path.join(repoPath, 'rules'));
+    await fse.ensureDir(path.join(homeDir, '.claude', 'rules'));
+
+    vi.stubEnv('HOME', homeDir);
+
+    handler = new RulesHandler();
+
+    teamConfig = {
+      team: 'test',
+      description: '',
+      repo: 'https://git.woa.com/test/repo.git',
+      sharing: { skills: { syncTargets: [] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+      toolPaths: {
+        claude: { skills: '.claude/skills', rules: '.claude/rules', settings: '.claude/settings.json', claudemd: '.claude/CLAUDE.md' },
+      },
+    };
+
+    localConfig = {
+      repo: { localPath: repoPath, remote: 'https://git.woa.com/test/repo.git' },
+      username: 'testuser',
+    };
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    await fse.remove(tmpDir);
+  });
+
+  it('should scan rules in subdirectories from team repo', async () => {
+    const teamRulesDir = path.join(localConfig.repo.localPath, 'rules');
+    await fse.ensureDir(path.join(teamRulesDir, 'common'));
+    await fse.ensureDir(path.join(teamRulesDir, 'python'));
+    await fse.writeFile(path.join(teamRulesDir, 'top-level.md'), 'top');
+    await fse.writeFile(path.join(teamRulesDir, 'common/general.md'), 'general');
+    await fse.writeFile(path.join(teamRulesDir, 'python/style.md'), 'style');
+
+    const items = await handler.scanTeamForPull(teamConfig, localConfig);
+    const names = items.map((i) => i.name).sort();
+    expect(names).toEqual(['common/general', 'python/style', 'top-level']);
+  });
+
+  it('should generate correct relativePath for subdirectory rules', async () => {
+    const teamRulesDir = path.join(localConfig.repo.localPath, 'rules');
+    await fse.ensureDir(path.join(teamRulesDir, 'golang'));
+    await fse.writeFile(path.join(teamRulesDir, 'golang/errors.md'), 'errors');
+
+    const items = await handler.scanTeamForPull(teamConfig, localConfig);
+    const item = items.find((i) => i.name === 'golang/errors');
+    expect(item).toBeDefined();
+    expect(item!.relativePath).toBe('rules/golang/errors.md');
+  });
+});

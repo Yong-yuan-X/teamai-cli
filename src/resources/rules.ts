@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { ResourceHandler } from './base.js';
 import type { ResourceItem, ResourceItemStatus, TeamaiConfig, LocalConfig } from '../types.js';
-import { listFiles, pathExists, readFileSafe, writeFile, copyFile, ensureDir, remove, fileContentEqual, getFileMtime } from '../utils/fs.js';
+import { listFilesRecursive, pathExists, readFileSafe, writeFile, copyFile, ensureDir, remove, fileContentEqual, getFileMtime } from '../utils/fs.js';
 import { log } from '../utils/logger.js';
 import { TEAMAI_RULES_START, TEAMAI_RULES_END } from '../types.js';
 
@@ -16,9 +16,10 @@ export class RulesHandler extends ResourceHandler {
    */
   async scanLocalForPush(teamConfig: TeamaiConfig, localConfig: LocalConfig): Promise<ResourceItem[]> {
     const teamRulesDir = path.join(localConfig.repo.localPath, 'rules');
+    // Recursively list team repo rules to support subdirectories
     const teamRules = new Set(
       (await pathExists(teamRulesDir))
-        ? (await listFiles(teamRulesDir)).filter((f) => f.endsWith('.md'))
+        ? (await listFilesRecursive(teamRulesDir)).filter((f) => f.endsWith('.md'))
         : [],
     );
 
@@ -28,16 +29,17 @@ export class RulesHandler extends ResourceHandler {
     // Collect the best candidate for each rule name across all tool directories
     const candidates = new Map<string, { sourcePath: string; mtime: number; status: ResourceItemStatus }>();
 
-    // Scan each tool's rules/ directory
+    // Scan each tool's rules/ directory (recursively)
     for (const [_tool, toolPath] of Object.entries(teamConfig.toolPaths)) {
       const rulesPath = toolPath.rules;
       if (!rulesPath) continue;
       const rulesDir = path.join(process.env.HOME ?? '', rulesPath);
       if (!await pathExists(rulesDir)) continue;
 
-      const files = await listFiles(rulesDir);
+      const files = await listFilesRecursive(rulesDir);
       for (const file of files) {
         if (!file.endsWith('.md')) continue;
+        // name includes subdirectory path, e.g. "common/coding-standards"
         const name = file.replace(/\.md$/, '');
         if (tombstones.has(name)) continue;
 
@@ -91,7 +93,7 @@ export class RulesHandler extends ResourceHandler {
     const rulesDir = path.join(localConfig.repo.localPath, 'rules');
     if (!await pathExists(rulesDir)) return [];
 
-    const files = await listFiles(rulesDir);
+    const files = await listFilesRecursive(rulesDir);
     return files
       .filter((f) => f.endsWith('.md'))
       .map((f) => ({
@@ -192,7 +194,15 @@ export class RulesHandler extends ResourceHandler {
       // Skip tools that are not installed
       if (!await ResourceHandler.isToolInstalled(toolPath.rules)) continue;
 
-      const ruleRefs = rules.map((r) => `- ~/${toolPath.rules}/${r.name}.md`);
+      // Reference the rules directory and docs directory
+      const refs: string[] = [
+        `- ~/${toolPath.rules}/`,
+      ];
+      const docsDir = teamConfig.sharing.docs.localDir;
+      if (docsDir) {
+        refs.push(`- ${docsDir}/`);
+      }
+
       const rulesBlock = [
         TEAMAI_RULES_START,
         '<!-- DO NOT EDIT: This section is auto-managed by teamai -->',
@@ -201,7 +211,7 @@ export class RulesHandler extends ResourceHandler {
         '',
         'The following rule files apply to this project:',
         '',
-        ...ruleRefs,
+        ...refs,
         '',
         TEAMAI_RULES_END,
       ].join('\n');

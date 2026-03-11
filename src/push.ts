@@ -55,9 +55,7 @@ export async function push(options: GlobalOptions & { all?: boolean }): Promise<
   for (const item of allItems) {
     const statusLabel = item.status === 'modified' ? ' (modified)' : ' (new)';
     console.log(`  [${item.type}] ${item.name}${statusLabel}`);
-    if (options.verbose) {
-      console.log(`    from: ${item.sourcePath}`);
-    }
+    console.log(`    from: ${item.sourcePath}`);
   }
   console.log('');
 

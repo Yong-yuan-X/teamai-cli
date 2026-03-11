@@ -323,7 +323,7 @@ describe('RulesHandler.pullAllRules — skip CLAUDE.md update for uninstalled to
     // claude CLAUDE.md should be created/updated
     expect(await fse.pathExists(path.join(homeDir, '.claude/CLAUDE.md'))).toBe(true);
     const content = await fse.readFile(path.join(homeDir, '.claude/CLAUDE.md'), 'utf-8');
-    expect(content).toContain('my-rule.md');
+    expect(content).toContain('.claude/rules/');
 
     // codebuddy should not exist at all
     expect(await fse.pathExists(path.join(homeDir, '.codebuddy'))).toBe(false);

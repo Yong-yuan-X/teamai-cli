@@ -96,10 +96,10 @@ export async function pull(options: GlobalOptions): Promise<void> {
       const items = await rulesHandler.scanTeamForPull(freshConfig, localConfig);
       if (items.length > 0) {
         if (options.dryRun) {
-          log.info(`[dry-run] Would merge ${items.length} rule(s) into CLAUDE.md`);
+          log.info(`[dry-run] Would sync ${items.length} rule(s)`);
         } else {
           await rulesHandler.pullAllRules(freshConfig, localConfig);
-          log.success(`Merged ${items.length} rule(s) into CLAUDE.md`);
+          log.success(`Synced ${items.length} rule(s)`);
         }
         totalSynced += items.length;
       }
