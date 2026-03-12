@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.11] - 2026-03-12
+
+### Fixed
+- 文件系统操作（目录扫描、内容比较、复制、mtime 计算）全局过滤 `__pycache__/`、`.pyc`、`.DS_Store`、`node_modules` 等无关文件，避免 push/pull 时产生误判的"已修改"diff
+
 ## [0.3.10] - 2026-03-11
 
 ### Added

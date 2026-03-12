@@ -3,6 +3,17 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import { log } from './logger.js';
 
+const IGNORED_NAMES = new Set([
+  '__pycache__',
+  '.pyc',
+  '.DS_Store',
+  'node_modules',
+]);
+
+function isIgnored(name: string): boolean {
+  return IGNORED_NAMES.has(name) || name.endsWith('.pyc');
+}
+
 /**
  * Expand ~ to $HOME in paths
  */
@@ -65,7 +76,10 @@ export async function writeJson(filePath: string, data: unknown): Promise<void> 
  * Copy a directory recursively
  */
 export async function copyDir(src: string, dest: string): Promise<void> {
-  await fse.copy(expandHome(src), expandHome(dest), { overwrite: true });
+  await fse.copy(expandHome(src), expandHome(dest), {
+    overwrite: true,
+    filter: (srcPath: string) => !isIgnored(path.basename(srcPath)),
+  });
 }
 
 /**
@@ -84,7 +98,7 @@ export async function listDirs(dirPath: string): Promise<string[]> {
   const expanded = expandHome(dirPath);
   if (!await fse.pathExists(expanded)) return [];
   const entries = await fse.readdir(expanded, { withFileTypes: true });
-  return entries.filter(e => e.isDirectory()).map(e => e.name);
+  return entries.filter(e => e.isDirectory() && !isIgnored(e.name)).map(e => e.name);
 }
 
 /**
@@ -111,6 +125,7 @@ export async function listFilesRecursive(dirPath: string): Promise<string[]> {
 async function _walkFiles(base: string, prefix: string, results: string[]): Promise<void> {
   const entries = await fse.readdir(path.join(base, prefix), { withFileTypes: true });
   for (const entry of entries) {
+    if (isIgnored(entry.name)) continue;
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isFile()) {
       results.push(rel);
@@ -158,6 +173,7 @@ export async function getDirLatestMtime(dirPath: string): Promise<number> {
   let latest = 0;
   const entries = await fse.readdir(expanded, { withFileTypes: true });
   for (const entry of entries) {
+    if (isIgnored(entry.name)) continue;
     const fullPath = path.join(expanded, entry.name);
     if (entry.isFile()) {
       const stat = await fse.stat(fullPath);
@@ -237,6 +253,7 @@ async function collectFiles(base: string, prefix: string, ignore?: Set<string>):
   const result = new Set<string>();
   const entries = await fse.readdir(path.join(base, prefix), { withFileTypes: true });
   for (const entry of entries) {
+    if (isIgnored(entry.name)) continue;
     if (ignore?.has(entry.name)) continue;
     const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isFile()) {
