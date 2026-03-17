@@ -19,12 +19,11 @@ async function getExistingLocalNames(
   const home = process.env.HOME ?? '';
 
   if (type === 'skills') {
-    // Check the first syncTarget's skills directory
-    const syncTargets = teamConfig.sharing.skills.syncTargets;
-    for (const tool of syncTargets) {
-      const toolPath = teamConfig.toolPaths[tool];
-      if (!toolPath) continue;
+    // Check the first installed tool's skills directory
+    for (const [_tool, toolPath] of Object.entries(teamConfig.toolPaths)) {
+      if (!toolPath.skills) continue;
       const skillsDir = path.join(home, toolPath.skills);
+      if (!await pathExists(skillsDir)) continue;
       for (const item of items) {
         const skillDir = path.join(skillsDir, item.name);
         if (await pathExists(skillDir)) {

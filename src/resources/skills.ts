@@ -123,11 +123,10 @@ export class SkillsHandler extends ResourceHandler {
    * Pull a skill from team repo to all configured AI tool directories.
    */
   async pullItem(item: ResourceItem, teamConfig: TeamaiConfig, _localConfig: LocalConfig): Promise<void> {
-    const syncTargets = teamConfig.sharing.skills.syncTargets;
+    const home = process.env.HOME ?? '';
 
-    for (const tool of syncTargets) {
-      const toolPath = teamConfig.toolPaths[tool];
-      if (!toolPath) continue;
+    for (const [tool, toolPath] of Object.entries(teamConfig.toolPaths)) {
+      if (!toolPath.skills) continue;
 
       // Skip tools that are not installed
       if (!await ResourceHandler.isToolInstalled(toolPath.skills)) {
@@ -135,7 +134,7 @@ export class SkillsHandler extends ResourceHandler {
         continue;
       }
 
-      const dest = path.join(process.env.HOME ?? '', toolPath.skills, item.name);
+      const dest = path.join(home, toolPath.skills, item.name);
       try {
         await copyDir(item.sourcePath, dest);
         log.debug(`Synced skill ${item.name} → ${tool}`);
@@ -163,10 +162,8 @@ export class SkillsHandler extends ResourceHandler {
     await this.addTombstone(name, localConfig);
 
     // Remove from each tool's skills directory
-    const syncTargets = teamConfig.sharing.skills.syncTargets;
-    for (const tool of syncTargets) {
-      const toolPath = teamConfig.toolPaths[tool];
-      if (!toolPath) continue;
+    for (const [tool, toolPath] of Object.entries(teamConfig.toolPaths)) {
+      if (!toolPath.skills) continue;
       const skillDir = path.join(home, toolPath.skills, name);
       if (await pathExists(skillDir)) {
         await remove(skillDir);
