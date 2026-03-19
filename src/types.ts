@@ -127,3 +127,41 @@ export const TEAMAI_HOOK_DESCRIPTION_PREFIX = '[teamai]';
 
 export const TEAMAI_ENV_START = '# [teamai:env:start]';
 export const TEAMAI_ENV_END = '# [teamai:env:end]';
+
+// ─── Usage tracking ────────────────────────────────────
+
+/** Regex for valid skill names: alphanumeric, hyphens, underscores, colons, dots. Max 200 chars. */
+export const SKILL_NAME_REGEX = /^[a-zA-Z0-9_\-:.]{1,200}$/;
+
+export const TEAMAI_USAGE_PATH = `${TEAMAI_HOME}/usage.jsonl`;
+export const TEAMAI_SESSIONS_DIR = `${TEAMAI_HOME}/sessions`;
+
+export interface UsageEvent {
+  skill: string;
+  timestamp: string;
+  tool: string;
+}
+
+export const UsageEventSchema = z.object({
+  skill: z.string().regex(SKILL_NAME_REGEX),
+  timestamp: z.string(),
+  tool: z.string(),
+});
+
+// ─── Stats YAML (team repo: stats/<user>.yaml) ─────────
+
+export interface UserStats {
+  username: string;
+  updatedAt: string;
+  skills: Record<string, { count: number; lastUsed: string }>;
+}
+
+// ─── Session records ───────────────────────────────────
+
+export interface SessionRecord {
+  date: string;
+  summary: string;
+  toolsUsed: string[];
+  hasValue: boolean;
+  errors?: string[];
+};

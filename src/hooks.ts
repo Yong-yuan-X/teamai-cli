@@ -5,6 +5,7 @@ import { TEAMAI_HOOK_DESCRIPTION_PREFIX } from './types.js';
 
 const TEAMAI_PULL_COMMAND = 'bash -lc "teamai pull" 2>/dev/null || true';
 const TEAMAI_UPDATE_CHECK_COMMAND = 'bash -lc "teamai update --check" 2>/dev/null || true';
+const TEAMAI_TRACK_COMMAND = 'bash -lc \'teamai track "$CLAUDE_TOOL_NAME" "$CLAUDE_TOOL_INPUT"\' 2>/dev/null || true';
 
 // ─── Claude Code / Claude Internal format (settings.json) ───
 
@@ -34,6 +35,12 @@ const CLAUDE_STOP_HOOK: HookMatcher = {
   matcher: '*',
   hooks: [{ type: 'command', command: TEAMAI_UPDATE_CHECK_COMMAND }],
   description: `${TEAMAI_HOOK_DESCRIPTION_PREFIX} Check for updates on session end`,
+};
+
+const CLAUDE_POST_TOOL_USE_HOOK: HookMatcher = {
+  matcher: 'Skill',
+  hooks: [{ type: 'command', command: TEAMAI_TRACK_COMMAND }],
+  description: `${TEAMAI_HOOK_DESCRIPTION_PREFIX} Track skill usage`,
 };
 
 // ─── Cursor format (hooks.json) ─────────────────────────────
@@ -116,6 +123,28 @@ async function injectClaudeHooks(settingsPath: string): Promise<void> {
         log.debug(`teamai hooks already exist in ${settingsPath}`);
       }
     }
+
+    // Ensure PostToolUse hook for skill usage tracking exists
+    if (!settings.hooks.PostToolUse) {
+      settings.hooks.PostToolUse = [];
+    }
+    const existingTrackInner = settings.hooks.PostToolUse.find(
+      (h) => h.description?.startsWith(TEAMAI_HOOK_DESCRIPTION_PREFIX) && h.description?.includes('Track skill')
+    );
+    if (!existingTrackInner) {
+      settings.hooks.PostToolUse.push(CLAUDE_POST_TOOL_USE_HOOK);
+      await writeJson(expanded, settings);
+      log.success(`Injected teamai track hook into ${settingsPath}`);
+    } else {
+      const currentTrackCmd = existingTrackInner.hooks?.[0]?.command;
+      if (currentTrackCmd !== TEAMAI_TRACK_COMMAND) {
+        existingTrackInner.hooks = CLAUDE_POST_TOOL_USE_HOOK.hooks;
+        existingTrackInner.matcher = CLAUDE_POST_TOOL_USE_HOOK.matcher;
+        await writeJson(expanded, settings);
+        log.success(`Updated teamai track hook in ${settingsPath}`);
+      }
+    }
+
     return;
   }
 
@@ -134,6 +163,23 @@ async function injectClaudeHooks(settingsPath: string): Promise<void> {
     const currentStopCmd = existingStop.hooks?.[0]?.command;
     if (currentStopCmd !== TEAMAI_UPDATE_CHECK_COMMAND) {
       existingStop.hooks = CLAUDE_STOP_HOOK.hooks;
+    }
+  }
+
+  // Inject PostToolUse hook for skill usage tracking
+  if (!settings.hooks.PostToolUse) {
+    settings.hooks.PostToolUse = [];
+  }
+  const existingTrack = settings.hooks.PostToolUse.find(
+    (h) => h.description?.startsWith(TEAMAI_HOOK_DESCRIPTION_PREFIX) && h.description?.includes('Track skill')
+  );
+  if (!existingTrack) {
+    settings.hooks.PostToolUse.push(CLAUDE_POST_TOOL_USE_HOOK);
+  } else {
+    const currentTrackCmd = existingTrack.hooks?.[0]?.command;
+    if (currentTrackCmd !== TEAMAI_TRACK_COMMAND) {
+      existingTrack.hooks = CLAUDE_POST_TOOL_USE_HOOK.hooks;
+      existingTrack.matcher = CLAUDE_POST_TOOL_USE_HOOK.matcher;
     }
   }
 
