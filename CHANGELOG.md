@@ -1,5 +1,7 @@
 # Changelog
 
+# Changelog
+
 ## [0.4.0] - 2026-03-19
 
 ### Added
