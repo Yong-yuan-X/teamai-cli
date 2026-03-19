@@ -63,6 +63,7 @@ export const LocalConfigSchema = z.object({
     remote: z.string(),
   }),
   username: z.string(),
+  updatePolicy: z.enum(['auto', 'prompt', 'skip']).default('auto'),
 });
 
 export type LocalConfig = z.infer<typeof LocalConfigSchema>;
@@ -75,6 +76,8 @@ export const StateSchema = z.object({
   pushedRules: z.array(z.string()).default([]),
   pushedSkills: z.array(z.string()).default([]),
   pushedEnvVars: z.array(z.string()).default([]),
+  lastUpdateCheck: z.string().nullable().default(null),
+  availableUpdate: z.string().nullable().default(null),
 });
 
 export type State = z.infer<typeof StateSchema>;
@@ -113,6 +116,7 @@ export const TEAMAI_HOME = `${process.env.HOME}/.teamai`;
 export const TEAMAI_CONFIG_PATH = `${TEAMAI_HOME}/config.yaml`;
 export const TEAMAI_STATE_PATH = `${TEAMAI_HOME}/state.json`;
 export const TEAMAI_TOKEN_PATH = `${TEAMAI_HOME}/token`;
+export const TEAMAI_UPDATE_LOCK_PATH = `${TEAMAI_HOME}/.update-lock`;
 
 export const RESOURCE_TYPES: ResourceType[] = ['skills', 'rules', 'docs', 'env'];
 

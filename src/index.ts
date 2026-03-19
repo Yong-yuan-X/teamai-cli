@@ -105,6 +105,16 @@ program
     await doctor(globalOpts);
   });
 
+program
+  .command('update')
+  .description('Check for updates and upgrade teamai CLI')
+  .option('--check', 'Check only, do not install (used by hooks)')
+  .action(async (cmdOpts) => {
+    const globalOpts = program.opts() as GlobalOptions;
+    const { update } = await import('./update.js');
+    await update({ ...globalOpts, ...cmdOpts });
+  });
+
 const envCmd = program
   .command('env')
   .description('Manage team environment variables')
