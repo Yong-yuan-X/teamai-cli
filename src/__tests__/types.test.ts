@@ -66,14 +66,6 @@ describe('TeamaiConfigSchema', () => {
     });
   });
 
-  it('should include codebuddy in default syncTargets', () => {
-    const result = TeamaiConfigSchema.parse({
-      team: 'test-team',
-      repo: 'https://git.woa.com/test/repo.git',
-    });
-    expect(result.sharing.skills.syncTargets).toContain('codebuddy');
-  });
-
   it('should preserve all existing default tools in toolPaths', () => {
     const result = TeamaiConfigSchema.parse({
       team: 'test-team',
@@ -96,13 +88,6 @@ describe('TeamaiConfigSchema', () => {
     });
   });
 
-  it('should include openclaw in default syncTargets', () => {
-    const result = TeamaiConfigSchema.parse({
-      team: 'test-team',
-      repo: 'https://git.woa.com/test/repo.git',
-    });
-    expect(result.sharing.skills.syncTargets).toContain('openclaw');
-  });
 });
 
 describe('TeamaiConfigSchema reviewers', () => {

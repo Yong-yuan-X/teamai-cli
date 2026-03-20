@@ -61,7 +61,7 @@ describe('pull tombstone cleanup', () => {
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
       sharing: {
-        skills: { syncTargets: ['claude', 'codex'] },
+        skills: {},
         rules: { enforced: [] },
         docs: { localDir: '' },
         env: { injectShellProfile: true },

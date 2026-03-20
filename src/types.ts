@@ -3,7 +3,7 @@ import { z } from 'zod';
 // ─── Tool path config ───────────────────────────────────
 
 export const ToolPathsSchema = z.object({
-  skills: z.string(),
+  skills: z.string().optional(),
   rules: z.string().optional(),
   settings: z.string().optional(),
   claudemd: z.string().optional(),
@@ -12,9 +12,7 @@ export const ToolPathsSchema = z.object({
 // ─── Team config (teamai.yaml) ───────────────────────────
 
 export const SharingConfigSchema = z.object({
-  skills: z.object({
-    syncTargets: z.array(z.string()).default(['claude', 'codex', 'claude-internal', 'cursor', 'codebuddy', 'openclaw']),
-  }).default({}),
+  skills: z.object({}).default({}),
   rules: z.object({
     enforced: z.array(z.string()).default([]),
   }).default({}),

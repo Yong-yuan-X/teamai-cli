@@ -41,7 +41,7 @@ describe('SkillsHandler.scanLocalForPush', () => {
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
       reviewers: [],
-      sharing: { skills: { syncTargets: [] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+      sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
       toolPaths: {
         claude: { skills: '.claude/skills', rules: '.claude/rules' },
       },
@@ -249,6 +249,19 @@ describe('SkillsHandler.scanLocalForPush', () => {
     const names = items.map((i) => i.name);
     expect(names).not.toContain('my-skill');
   });
+
+  it('should not crash when a toolPath has no skills property', async () => {
+    // Add a tool entry without a skills path (e.g., a hypothetical tool with only rules)
+    (teamConfig.toolPaths as Record<string, unknown>)['no-skills-tool'] = { rules: '.no-skills-tool/rules' };
+
+    const skillDir = path.join(homeDir, '.claude/skills', 'my-skill');
+    await fse.ensureDir(skillDir);
+    await fse.writeFile(path.join(skillDir, 'SKILL.md'), '# My Skill');
+
+    // Should not throw and should still find skills from other tools
+    const items = await handler.scanLocalForPush(teamConfig, localConfig);
+    expect(items.find((i) => i.name === 'my-skill')).toBeDefined();
+  });
 });
 
 describe('SkillsHandler.pushItem', () => {
@@ -275,7 +288,7 @@ describe('SkillsHandler.pushItem', () => {
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
       reviewers: [],
-      sharing: { skills: { syncTargets: [] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+      sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
       toolPaths: {
         claude: { skills: '.claude/skills', rules: '.claude/rules' },
       },

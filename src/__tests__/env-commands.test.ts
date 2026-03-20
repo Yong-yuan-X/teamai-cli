@@ -57,7 +57,7 @@ describe('env-commands', () => {
       repo: 'https://git.woa.com/test/repo.git',
       reviewers: [],
       sharing: {
-        skills: { syncTargets: [] },
+        skills: {},
         rules: { enforced: [] },
         docs: { localDir: '' },
         env: { injectShellProfile: true },

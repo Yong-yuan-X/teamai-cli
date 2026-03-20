@@ -73,7 +73,7 @@ describe('RulesHandler.removeItem', () => {
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
-      sharing: { skills: { syncTargets: [] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+      sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
       toolPaths: {
         claude: { skills: '.claude/skills', rules: '.claude/rules', settings: '.claude/settings.json', claudemd: '.claude/CLAUDE.md' },
         codex: { skills: '.codex/skills', rules: '.codex/rules' },
@@ -167,7 +167,7 @@ describe('SkillsHandler.removeItem', () => {
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
       sharing: {
-        skills: { syncTargets: ['claude', 'codex'] },
+        skills: {},
         rules: { enforced: [] },
         docs: { localDir: '' },
         env: { injectShellProfile: true },
@@ -268,7 +268,7 @@ describe('Tombstone mechanism', () => {
         team: 'test',
         description: '',
         repo: 'https://git.woa.com/test/repo.git',
-        sharing: { skills: { syncTargets: [] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+        sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: {
           claude: { skills: '.claude/skills', rules: '.claude/rules', settings: '.claude/settings.json', claudemd: '.claude/CLAUDE.md' },
         },
@@ -382,7 +382,7 @@ describe('Tombstone mechanism', () => {
         description: '',
         repo: 'https://git.woa.com/test/repo.git',
         sharing: {
-          skills: { syncTargets: ['claude'] },
+          skills: {},
           rules: { enforced: [] },
           docs: { localDir: '' },
           env: { injectShellProfile: true },
@@ -508,7 +508,7 @@ describe('Tombstone mechanism', () => {
         description: '',
         repo: 'https://git.woa.com/test/repo.git',
         sharing: {
-          skills: { syncTargets: ['claude'] },
+          skills: {},
           rules: { enforced: [] },
           docs: { localDir: '' },
           env: { injectShellProfile: true },
@@ -596,7 +596,7 @@ describe('Tombstone mechanism', () => {
       };
       const teamConfig: TeamaiConfig = {
         team: 'test', description: '', repo: '',
-        sharing: { skills: { syncTargets: [] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+        sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: { claude: { skills: '.claude/skills', rules: '.claude/rules' } },
       };
 
@@ -616,7 +616,7 @@ describe('Tombstone mechanism', () => {
       };
       const teamConfig: TeamaiConfig = {
         team: 'test', description: '', repo: '',
-        sharing: { skills: { syncTargets: ['claude'] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+        sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: { claude: { skills: '.claude/skills', rules: '.claude/rules' } },
       };
 
@@ -650,7 +650,7 @@ describe('Tombstone mechanism', () => {
 
       const teamConfig: TeamaiConfig = {
         team: 'test', description: '', repo: '',
-        sharing: { skills: { syncTargets: [] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+        sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: { claude: { skills: '.claude/skills', rules: '.claude/rules' } },
       };
       const localConfig: LocalConfig = {
@@ -685,7 +685,7 @@ describe('Tombstone mechanism', () => {
 
       const teamConfig: TeamaiConfig = {
         team: 'test', description: '', repo: '',
-        sharing: { skills: { syncTargets: ['claude'] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+        sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: { claude: { skills: '.claude/skills', rules: '.claude/rules' } },
       };
       const localConfig: LocalConfig = {
@@ -735,7 +735,7 @@ describe('Tombstone mechanism', () => {
 
       const teamConfig: TeamaiConfig = {
         team: 'test', description: '', repo: '',
-        sharing: { skills: { syncTargets: [] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+        sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: { claude: { skills: '.claude/skills', rules: '.claude/rules' } },
       };
       const localConfig: LocalConfig = {
@@ -766,7 +766,7 @@ describe('Tombstone mechanism', () => {
 
       const teamConfig: TeamaiConfig = {
         team: 'test', description: '', repo: '',
-        sharing: { skills: { syncTargets: ['claude'] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+        sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: { claude: { skills: '.claude/skills', rules: '.claude/rules' } },
       };
       const localConfig: LocalConfig = {

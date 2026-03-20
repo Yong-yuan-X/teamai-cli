@@ -104,7 +104,7 @@ describe('SkillsHandler.pullItem — skip uninstalled tools', () => {
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
       sharing: {
-        skills: { syncTargets: ['claude', 'codebuddy'] },
+        skills: {},
         rules: { enforced: [] },
         docs: { localDir: '' },
         env: { injectShellProfile: true },
@@ -201,7 +201,7 @@ describe('RulesHandler.pullItem — skip uninstalled tools', () => {
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
       sharing: {
-        skills: { syncTargets: [] },
+        skills: {},
         rules: { enforced: [] },
         docs: { localDir: '' },
         env: { injectShellProfile: true },
@@ -295,7 +295,7 @@ describe('RulesHandler.pullAllRules — skip CLAUDE.md update for uninstalled to
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
       sharing: {
-        skills: { syncTargets: [] },
+        skills: {},
         rules: { enforced: [] },
         docs: { localDir: '' },
         env: { injectShellProfile: true },

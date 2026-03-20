@@ -46,7 +46,7 @@ function mockRequireInit(tmpDir: string, username = 'alice') {
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/team/repo.git',
-      sharing: { skills: { syncTargets: [] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+      sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
       toolPaths: {},
     },
   });

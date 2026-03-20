@@ -27,6 +27,7 @@ export class SkillsHandler extends ResourceHandler {
 
     // Scan each tool's skills directory
     for (const [_tool, toolPath] of Object.entries(teamConfig.toolPaths)) {
+      if (!toolPath.skills) continue;
       const skillsDir = path.join(process.env.HOME ?? '', toolPath.skills);
       if (!await pathExists(skillsDir)) continue;
 

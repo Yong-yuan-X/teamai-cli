@@ -65,7 +65,7 @@ describe('RulesHandler.scanLocalForPush — modified rule detection', () => {
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
-      sharing: { skills: { syncTargets: [] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+      sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
       toolPaths: {
         claude: { skills: '.claude/skills', rules: '.claude/rules', settings: '.claude/settings.json', claudemd: '.claude/CLAUDE.md' },
       },
@@ -247,7 +247,7 @@ describe('RulesHandler.scanLocalForPush — subdirectory support', () => {
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
-      sharing: { skills: { syncTargets: [] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+      sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
       toolPaths: {
         claude: { skills: '.claude/skills', rules: '.claude/rules', settings: '.claude/settings.json', claudemd: '.claude/CLAUDE.md' },
       },
@@ -356,7 +356,7 @@ describe('RulesHandler.scanTeamForPull — subdirectory support', () => {
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
-      sharing: { skills: { syncTargets: [] }, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
+      sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
       toolPaths: {
         claude: { skills: '.claude/skills', rules: '.claude/rules', settings: '.claude/settings.json', claudemd: '.claude/CLAUDE.md' },
       },

@@ -138,7 +138,6 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
       description: 'TeamAI shared resources',
       repo: repoInfo.httpsUrl,
       sharing: {
-        skills: { syncTargets: ['claude', 'codex', 'claude-internal', 'cursor', 'codebuddy'] },
         rules: { enforced: [] },
         docs: { localDir: '~/.teamai/docs' },
         env: { injectShellProfile: true },
