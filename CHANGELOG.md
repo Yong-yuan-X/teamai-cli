@@ -2,6 +2,16 @@
 
 # Changelog
 
+## [0.4.1] - 2026-03-20
+
+### Fixed
+- `scanLocalForPush()` crash bug：遍历 `toolPaths` 时缺少 `toolPath.skills` null 检查，当工具配置没有 `skills` 字段时 `teamai push` 会崩溃 (TypeError)。该 bug 在 v0.3.13 重构时遗漏 (!61)
+- `ToolPathsSchema.skills` 从 required 改为 optional，与运行时防御性检查一致
+
+### Removed
+- 清理 `syncTargets` 僵尸配置：v0.3.13 已改为自动检测工具，但 `syncTargets` 残留在 schema、init、28+ 处测试中。全部清除
+- `init` 生成的 `teamai.yaml` 不再包含 `sharing.skills.syncTargets` 字段
+
 ## [0.4.0] - 2026-03-19
 
 ### Added
