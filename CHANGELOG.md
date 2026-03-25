@@ -1,5 +1,21 @@
 # Changelog
 
+All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
+
+## [0.5.0](https://git.woa.com/teamai/teamai-cli/compare/v0.4.5...v0.5.0) (2026-03-25)
+
+
+### Features
+
+* add AI coding session dashboard (Phase 1) (merge request !69) ([25308dd](https://git.woa.com/teamai/teamai-cli/commit/25308dd08a32ed52a3a43aa661475c0e6893c0ea))
+
+
+### Bug Fixes
+
+* cleanup all teamai hooks (including outdated descriptions) before re-inject ([8352449](https://git.woa.com/teamai/teamai-cli/commit/8352449fed58398a008440cd80b9760602431bf7))
+* usage tracking tool field + auto hook cleanup (merge request !68) ([3086278](https://git.woa.com/teamai/teamai-cli/commit/30862780f86e883de5bd74c710e94ab502b8cf16))
+* usage tracking tool field correctly identifies each AI tool (merge request !67) ([dfd51ca](https://git.woa.com/teamai/teamai-cli/commit/dfd51ca197729b14eea5e9977f37114f02c04c42))
+
 ## [0.4.7] - 2026-03-24
 
 ### Fixed
