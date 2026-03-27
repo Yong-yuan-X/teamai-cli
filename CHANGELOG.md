@@ -2,6 +2,58 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.6.0](https://git.woa.com/teamai/teamai-cli/compare/v0.5.2...v0.6.0) (2026-03-27)
+
+### 🚀 Session 经验自动分享
+
+AI coding session 中使用超过 100 次工具调用时，系统智能评估 session 价值并提示用户分享经验给团队。
+
+**工作原理：**
+
+```
+AI coding session
+    │
+    ▼  PostToolUse hook 每次工具调用自动计数（~1ms）
+    │
+    ├─ < 100 次 → 静默计数
+    │
+    ▼  达到 100 次 → 智能评分
+    │
+    ├─ 分数不够（只是重复调用同一个工具）→ 不打扰
+    │
+    ▼  分数达标（工具多样、用了 skill、有错误重试、session 够长）
+    │
+    AI 提示："本次 session 内容丰富，建议运行 /teamai-share-learnings 分享经验"
+    │
+    ▼  用户同意 → AI sub-agent 生成摘要 → push 到团队仓库 ai-docs/
+```
+
+**新命令：**
+- `teamai contribute --file <path> --title <title>` — 将经验文档推送到团队仓库 `ai-docs/` 目录
+- `teamai contribute-check --stdin` — hook 内部使用，智能阈值检测
+
+**内置 Skill：**
+- `/teamai-share-learnings` — AI sub-agent 总结 session 经验并推送到团队仓库
+- 随 `teamai pull/init` 自动部署到本地，CLI 升级时 skill 内容跟着更新
+- `teamai push` 自动排除内置 skill，不会推到团队 repo
+
+**智能评分机制：**
+- 工具多样性（用了多少种不同工具）— 最高 30 分
+- Skill 使用（触发了复杂工作流）— 25 分
+- 错误和重试（踩坑经验更有价值）— 25 分
+- Session 时长（> 30 分钟）— 20 分
+- 总分 ≥ 60 才触发提示
+
+**性能设计：**
+- 两层检测：前 99 次只读写小 JSON state 文件（~1ms），不读 events.jsonl
+- 达到 100 次时一次性读取 events.jsonl 做智能评估
+- 每个 session 最多提示一次（去重），用户可忽略
+
+**技术细节：**
+- 新增 `contribute-check.ts`（阈值检测 + STDOUT hint）、`contribute.ts`（push 命令）、`builtin-skills.ts`（内置 skill 自动部署）
+- 修改 `hooks.ts`（新增 PostToolUse contribute-check hook）、`pull.ts`/`init.ts`（内置 skill 部署）
+- 15 个新单测 + 更新现有 hooks 测试
+
 ### [0.5.2](https://git.woa.com/teamai/teamai-cli/compare/v0.5.1...v0.5.2) (2026-03-26)
 
 ### Bug Fixes
