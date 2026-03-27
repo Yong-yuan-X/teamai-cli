@@ -232,7 +232,7 @@ export async function contributeCheck(toolArg?: string): Promise<void> {
   const uniqueTools = new Set(sessionEvents.filter((e) => e.toolName).map((e) => e.toolName)).size;
   const hint = [
     `[teamai] 本次 session 内容丰富（${toolCount} 次工具调用，${uniqueTools} 种不同工具）。`,
-    `建议运行 /teamai-contribute 总结本次 session 的经验并分享给团队。`,
+    `建议运行 /teamai-share-learnings 总结本次 session 的经验并分享给团队。`,
     `总结文档将保存到团队仓库的 ai-docs/ 目录。`,
   ].join('');
 
