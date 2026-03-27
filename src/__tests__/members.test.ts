@@ -46,6 +46,8 @@ function mockRequireInit(tmpDir: string, username = 'alice') {
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/team/repo.git',
+      provider: 'tgit' as const,
+      reviewers: [],
       sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
       toolPaths: {},
     },

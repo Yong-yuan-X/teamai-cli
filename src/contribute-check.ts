@@ -7,7 +7,6 @@ import type { ContributeState, DashboardEvent } from './types.js';
 import {
   CONTRIBUTE_BASE_THRESHOLD,
   CONTRIBUTE_SMART_THRESHOLD,
-  CONTRIBUTE_STATE_PATH,
 } from './types.js';
 
 // ─── Contribute check data flow ──────────────────────────
@@ -35,15 +34,14 @@ import {
 //      └─ STDOUT hint → AI reads, suggests /contribute
 //
 
-/** Get state path (evaluated at call time for test overrides). */
-function getStatePath(): string {
-  return path.join(process.env.HOME ?? '', '.teamai', 'contribute-state.json');
+/** Get session state file path: ~/.teamai/sessions/{sessionId}.json */
+function getSessionPath(sessionId: string): string {
+  return path.join(process.env.HOME ?? '', '.teamai', 'sessions', `${sessionId}.json`);
 }
 
 /** Default empty state for a new session. */
-function defaultState(sessionId: string): ContributeState {
+function defaultState(): ContributeState {
   return {
-    sessionId,
     toolCount: 0,
     hinted: false,
     contributed: false,
@@ -53,24 +51,48 @@ function defaultState(sessionId: string): ContributeState {
 /** Read persisted contribute state. Returns defaults if missing or corrupted. */
 export async function readContributeState(sessionId: string): Promise<ContributeState> {
   try {
-    const state = await readJson<ContributeState>(getStatePath());
-    if (state && state.sessionId === sessionId) {
+    const state = await readJson<ContributeState>(getSessionPath(sessionId));
+    if (state) {
       return state;
     }
-    // Different session — reset state
-    return defaultState(sessionId);
+    return defaultState();
   } catch {
-    return defaultState(sessionId);
+    return defaultState();
   }
 }
 
 /** Persist contribute state to disk. Silently fails on I/O errors. */
-export async function writeContributeState(state: ContributeState): Promise<void> {
+export async function writeContributeState(sessionId: string, state: ContributeState): Promise<void> {
   try {
-    await ensureDir(path.dirname(getStatePath()));
-    await writeJson(getStatePath(), state);
+    const filePath = getSessionPath(sessionId);
+    await ensureDir(path.dirname(filePath));
+    await writeJson(filePath, state);
+    // Best-effort cleanup of stale session files (>24h)
+    await cleanupStaleSessions(path.dirname(filePath), sessionId);
   } catch (e) {
     log.debug(`Failed to write contribute state: ${(e as Error).message}`);
+  }
+}
+
+const STALE_SESSION_MS = 24 * 60 * 60 * 1000;
+
+/** Remove session files older than 24h. Skips the current session. */
+async function cleanupStaleSessions(dir: string, currentSessionId: string): Promise<void> {
+  const now = Date.now();
+  const entries = await fs.promises.readdir(dir);
+  for (const entry of entries) {
+    if (!entry.endsWith('.json')) continue;
+    const name = entry.replace('.json', '');
+    if (name === currentSessionId) continue;
+    const filePath = path.join(dir, entry);
+    try {
+      const stat = await fs.promises.stat(filePath);
+      if (now - stat.mtimeMs > STALE_SESSION_MS) {
+        await fs.promises.unlink(filePath);
+      }
+    } catch {
+      // Ignore — file may have been removed by another session
+    }
   }
 }
 
@@ -205,7 +227,7 @@ export async function contributeCheck(toolArg?: string): Promise<void> {
 
   // Layer 1: below base threshold — just save count and exit
   if (updatedState.toolCount < CONTRIBUTE_BASE_THRESHOLD) {
-    await writeContributeState(updatedState);
+    await writeContributeState(sessionId, updatedState);
     return;
   }
 
@@ -220,7 +242,7 @@ export async function contributeCheck(toolArg?: string): Promise<void> {
 
   // Mark as hinted regardless of score — avoid re-evaluating every subsequent call
   updatedState.hinted = true;
-  await writeContributeState(updatedState);
+  await writeContributeState(sessionId, updatedState);
 
   if (score < CONTRIBUTE_SMART_THRESHOLD) {
     log.debug('contribute-check: score below threshold, skipping hint');
@@ -247,5 +269,5 @@ export async function contributeCheck(toolArg?: string): Promise<void> {
 export async function markContributed(sessionId: string): Promise<void> {
   const state = await readContributeState(sessionId);
   const updated: ContributeState = { ...state, contributed: true };
-  await writeContributeState(updated);
+  await writeContributeState(sessionId, updated);
 }

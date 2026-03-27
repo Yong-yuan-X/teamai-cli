@@ -1,8 +1,7 @@
 import readline from 'node:readline';
 import { requireInit, loadState, saveState } from './config.js';
 import { pullRepo, pushRepoBranch, checkoutMaster, generateBranchName } from './utils/git.js';
-import { gfMrCreate } from './utils/gf-cli.js';
-import { parseRepoInput } from './utils/repo-url.js';
+import { getProvider } from './providers/index.js';
 import { log, spinner } from './utils/logger.js';
 import { getHandler } from './resources/index.js';
 import type { GlobalOptions, ResourceItem, ResourceType } from './types.js';
@@ -16,6 +15,47 @@ function askConfirm(prompt: string): Promise<boolean> {
     });
   });
 }
+
+/**
+ * Create a PR/MR via the configured provider with standard error handling.
+ * Returns the PR URL on success, or null if creation failed (branch is still pushed).
+ */
+async function createPrWithFallback(
+  teamConfig: { repo: string; provider?: string; reviewers?: string[] },
+  localConfig: { repo: { remote: string; localPath: string } },
+  branchName: string,
+  title: string,
+  description: string,
+): Promise<string | null> {
+  const provider = getProvider(teamConfig.provider);
+  const mrSpin = spinner('Creating Pull Request...').start();
+  try {
+    let repoInfo;
+    try {
+      repoInfo = provider.parseRepoInput(teamConfig.repo);
+    } catch {
+      repoInfo = provider.parseRepoInput(localConfig.repo.remote);
+    }
+
+    const prUrl = provider.createPullRequest({
+      repo: `${repoInfo.owner}/${repoInfo.repo}`,
+      source: branchName,
+      target: 'master',
+      title,
+      description,
+      reviewers: teamConfig.reviewers?.length ? teamConfig.reviewers : undefined,
+      cwd: localConfig.repo.localPath,
+    });
+    mrSpin.succeed(`Pull Request created: ${prUrl}`);
+    return prUrl;
+  } catch (e) {
+    mrSpin.fail(`Failed to create PR: ${(e as Error).message}`);
+    log.info(`Branch ${branchName} has been pushed. You can create a PR manually.`);
+    return null;
+  }
+}
+
+export { createPrWithFallback };
 
 export async function push(options: GlobalOptions & { all?: boolean }): Promise<void> {
   const { localConfig, teamConfig } = await requireInit();
@@ -103,33 +143,16 @@ export async function push(options: GlobalOptions & { all?: boolean }): Promise<
 
     pushSpin.succeed(`Pushed branch ${branchName}`);
 
-    // Create Merge Request via gf CLI
-    // HEAD is still on branchName so gf's internal push sees the right branch
-    const mrSpin = spinner('Creating Merge Request...').start();
-    try {
-      let repoInfo;
-      try {
-        repoInfo = parseRepoInput(teamConfig.repo);
-      } catch {
-        repoInfo = parseRepoInput(localConfig.repo.remote);
-      }
+    // Create PR/MR via provider
+    await createPrWithFallback(
+      teamConfig,
+      localConfig,
+      branchName,
+      commitMsg,
+      `Pushed ${allItems.length} resource(s):\n${allItems.map((i) => `- [${i.type}] ${i.name}`).join('\n')}`,
+    );
 
-      const mrUrl = gfMrCreate({
-        repo: `${repoInfo.owner}/${repoInfo.repo}`,
-        source: branchName,
-        target: 'master',
-        title: commitMsg,
-        description: `Pushed ${allItems.length} resource(s):\n${allItems.map((i) => `- [${i.type}] ${i.name}`).join('\n')}`,
-        reviewers: teamConfig.reviewers?.length ? teamConfig.reviewers : undefined,
-        cwd: localConfig.repo.localPath,
-      });
-      mrSpin.succeed(`Merge Request created: ${mrUrl}`);
-    } catch (e) {
-      mrSpin.fail(`Failed to create MR: ${(e as Error).message}`);
-      log.info(`Branch ${branchName} has been pushed. You can create a MR manually.`);
-    }
-
-    // Switch back to master after MR creation
+    // Switch back to master after PR creation
     await checkoutMaster(localConfig.repo.localPath);
   } catch (e) {
     pushSpin.fail(`Push failed: ${(e as Error).message}`);

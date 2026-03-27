@@ -1,8 +1,7 @@
 import readline from 'node:readline';
 import { requireInit, loadState, saveState } from './config.js';
 import { pullRepo, pushRepoBranch, checkoutMaster, generateBranchName } from './utils/git.js';
-import { gfMrCreate } from './utils/gf-cli.js';
-import { parseRepoInput } from './utils/repo-url.js';
+import { createPrWithFallback } from './push.js';
 import { log, spinner } from './utils/logger.js';
 import { getHandler } from './resources/index.js';
 import type { GlobalOptions, ResourceType } from './types.js';
@@ -96,33 +95,16 @@ export async function remove(
     } else {
       spin.succeed(`Removed [${type}] ${name} from ${removedPaths.length} location(s)`);
 
-      // Create MR via gf CLI
-      // HEAD is still on branchName so gf's internal push sees the right branch
-      const mrSpin = spinner('Creating Merge Request...').start();
-      try {
-        let repoInfo;
-        try {
-          repoInfo = parseRepoInput(teamConfig.repo);
-        } catch {
-          repoInfo = parseRepoInput(localConfig.repo.remote);
-        }
+      // Create PR/MR via provider (shared helper — DRY)
+      await createPrWithFallback(
+        teamConfig,
+        localConfig,
+        branchName,
+        commitMsg,
+        `Remove [${type}] ${name}`,
+      );
 
-        const mrUrl = gfMrCreate({
-          repo: `${repoInfo.owner}/${repoInfo.repo}`,
-          source: branchName,
-          target: 'master',
-          title: commitMsg,
-          description: `Remove [${type}] ${name}`,
-          reviewers: teamConfig.reviewers?.length ? teamConfig.reviewers : undefined,
-          cwd: localConfig.repo.localPath,
-        });
-        mrSpin.succeed(`Merge Request created: ${mrUrl}`);
-      } catch (e) {
-        mrSpin.fail(`Failed to create MR: ${(e as Error).message}`);
-        log.info(`Branch ${branchName} has been pushed. You can create a MR manually.`);
-      }
-
-      // Switch back to master after MR creation
+      // Switch back to master after PR creation
       await checkoutMaster(localConfig.repo.localPath);
     }
   } catch (e) {

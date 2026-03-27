@@ -29,6 +29,8 @@ export const TeamaiConfigSchema = z.object({
   team: z.string(),
   description: z.string().default(''),
   repo: z.string(),
+  /** Git hosting provider: 'tgit' | 'github'. Defaults to 'tgit' for backward compatibility. */
+  provider: z.enum(['tgit', 'github']).default('tgit'),
   reviewers: z.array(z.string()).default([]),
   sharing: SharingConfigSchema.default({}),
   toolPaths: z.record(z.string(), ToolPathsSchema).default({
@@ -250,10 +252,8 @@ export const DASHBOARD_COMPACTION_THRESHOLD = 10_000;
 //  STDOUT hint → AI suggests /contribute to user
 //
 
-/** Per-session contribute state, persisted to ~/.teamai/contribute-state.json */
+/** Per-session contribute state, persisted to ~/.teamai/sessions/{sessionId}.json */
 export interface ContributeState {
-  /** Session ID this state belongs to */
-  sessionId: string;
   /** Total tool calls counted so far */
   toolCount: number;
   /** Whether the contribute hint has already been shown */
@@ -263,10 +263,10 @@ export interface ContributeState {
 }
 
 /** Base threshold: minimum tool calls before smart evaluation triggers */
-export const CONTRIBUTE_BASE_THRESHOLD = 100;
+export const CONTRIBUTE_BASE_THRESHOLD = 50;
 
 /** Smart score threshold: minimum score to show contribute hint */
 export const CONTRIBUTE_SMART_THRESHOLD = 60;
 
-/** Path to per-session contribute state */
-export const CONTRIBUTE_STATE_PATH = `${TEAMAI_HOME}/contribute-state.json`;
+/** Directory for per-session contribute state files */
+export const CONTRIBUTE_SESSIONS_DIR = `${TEAMAI_HOME}/sessions`;

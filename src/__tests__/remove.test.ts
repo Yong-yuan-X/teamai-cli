@@ -73,6 +73,8 @@ describe('RulesHandler.removeItem', () => {
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
+      provider: 'tgit' as const,
+      reviewers: [],
       sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
       toolPaths: {
         claude: { skills: '.claude/skills', rules: '.claude/rules', settings: '.claude/settings.json', claudemd: '.claude/CLAUDE.md' },
@@ -166,6 +168,8 @@ describe('SkillsHandler.removeItem', () => {
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
+      provider: 'tgit' as const,
+      reviewers: [],
       sharing: {
         skills: {},
         rules: { enforced: [] },
@@ -268,6 +272,8 @@ describe('Tombstone mechanism', () => {
         team: 'test',
         description: '',
         repo: 'https://git.woa.com/test/repo.git',
+        provider: 'tgit' as const,
+        reviewers: [],
         sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: {
           claude: { skills: '.claude/skills', rules: '.claude/rules', settings: '.claude/settings.json', claudemd: '.claude/CLAUDE.md' },
@@ -381,6 +387,8 @@ describe('Tombstone mechanism', () => {
         team: 'test',
         description: '',
         repo: 'https://git.woa.com/test/repo.git',
+        provider: 'tgit' as const,
+        reviewers: [],
         sharing: {
           skills: {},
           rules: { enforced: [] },
@@ -507,6 +515,8 @@ describe('Tombstone mechanism', () => {
         team: 'test',
         description: '',
         repo: 'https://git.woa.com/test/repo.git',
+        provider: 'tgit' as const,
+        reviewers: [],
         sharing: {
           skills: {},
           rules: { enforced: [] },
@@ -595,7 +605,7 @@ describe('Tombstone mechanism', () => {
         updatePolicy: 'auto',
       };
       const teamConfig: TeamaiConfig = {
-        team: 'test', description: '', repo: '',
+        team: 'test', description: '', repo: '', provider: 'tgit' as const, reviewers: [],
         sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: { claude: { skills: '.claude/skills', rules: '.claude/rules' } },
       };
@@ -615,7 +625,7 @@ describe('Tombstone mechanism', () => {
         updatePolicy: 'auto',
       };
       const teamConfig: TeamaiConfig = {
-        team: 'test', description: '', repo: '',
+        team: 'test', description: '', repo: '', provider: 'tgit' as const, reviewers: [],
         sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: { claude: { skills: '.claude/skills', rules: '.claude/rules' } },
       };
@@ -649,7 +659,7 @@ describe('Tombstone mechanism', () => {
       await fse.ensureDir(path.join(homeDir, '.claude', 'rules'));
 
       const teamConfig: TeamaiConfig = {
-        team: 'test', description: '', repo: '',
+        team: 'test', description: '', repo: '', provider: 'tgit' as const, reviewers: [],
         sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: { claude: { skills: '.claude/skills', rules: '.claude/rules' } },
       };
@@ -684,7 +694,7 @@ describe('Tombstone mechanism', () => {
       await fse.ensureDir(path.join(homeDir, '.claude', 'skills'));
 
       const teamConfig: TeamaiConfig = {
-        team: 'test', description: '', repo: '',
+        team: 'test', description: '', repo: '', provider: 'tgit' as const, reviewers: [],
         sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: { claude: { skills: '.claude/skills', rules: '.claude/rules' } },
       };
@@ -734,7 +744,7 @@ describe('Tombstone mechanism', () => {
       await fse.ensureDir(path.join(homeDir, '.claude', 'rules'));
 
       const teamConfig: TeamaiConfig = {
-        team: 'test', description: '', repo: '',
+        team: 'test', description: '', repo: '', provider: 'tgit' as const, reviewers: [],
         sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: { claude: { skills: '.claude/skills', rules: '.claude/rules' } },
       };
@@ -765,7 +775,7 @@ describe('Tombstone mechanism', () => {
       await fse.ensureDir(path.join(homeDir, '.claude', 'skills'));
 
       const teamConfig: TeamaiConfig = {
-        team: 'test', description: '', repo: '',
+        team: 'test', description: '', repo: '', provider: 'tgit' as const, reviewers: [],
         sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
         toolPaths: { claude: { skills: '.claude/skills', rules: '.claude/rules' } },
       };

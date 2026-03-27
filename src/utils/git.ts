@@ -1,43 +1,19 @@
 import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import fse from 'fs-extra';
 import simpleGit, { type SimpleGit } from 'simple-git';
 import { log } from './logger.js';
-import { gfGetOAuthToken } from './gf-cli.js';
 
 /**
- * Create a SimpleGit instance.
+ * Create a SimpleGit instance for a given base path.
  *
- * When a valid OAuth token is available from the gf credential store,
- * injects a temporary credential-helper so that git always authenticates
- * with the OAuth token (username=oauth2) rather than a plain-text password
- * that may be stored in the user's keychain.
- * If no token is found the call falls back to plain simpleGit (SSH or
- * cached credentials will still work).
+ * Authentication is handled by credentials embedded in the remote URL
+ * (set during clone by the provider). No credential-helper injection needed.
  */
 export function createGit(basePath?: string): SimpleGit {
-  const token = gfGetOAuthToken();
-  if (!token) {
-    return simpleGit(basePath ? { baseDir: basePath } : undefined);
+  if (basePath) {
+    return simpleGit({ baseDir: basePath });
   }
-
-  // Write a tiny credential-helper script that returns the current token
-  const scriptPath = path.join(os.tmpdir(), `.teamai-git-credential-${process.pid}.sh`);
-  fs.writeFileSync(
-    scriptPath,
-    `#!/bin/sh\nif [ "$1" = "get" ]; then\n  echo "username=oauth2"\n  echo "password=${token}"\nfi\n`,
-    { mode: 0o700 },
-  );
-
-  const opts: Record<string, unknown> = {
-    config: [
-      'credential.helper=',           // clear existing helpers
-      `credential.helper=!${scriptPath}`,  // use our helper
-    ],
-  };
-  if (basePath) opts.baseDir = basePath;
-  return simpleGit(opts);
+  return simpleGit();
 }
 
 /**
@@ -51,24 +27,33 @@ export async function initRepo(remote: string, localPath: string): Promise<void>
   await git.addRemote('origin', remote);
 }
 
-const DEFAULT_EMAIL_DOMAIN = 'tencent.com';
-
 /**
  * Configure git user.name and user.email for a repo.
- * Email defaults to `<username>@tencent.com` but can be overridden.
+ *
+ * If email is not provided and defaultEmailDomain is given,
+ * generates `<username>@<domain>`. If neither is provided,
+ * skips email configuration (uses git global config).
  */
 export async function configureGitUser(
   localPath: string,
   username: string,
   displayName?: string,
   email?: string,
+  defaultEmailDomain?: string,
 ): Promise<void> {
   const git = createGit(localPath);
   const name = displayName || username;
-  const resolvedEmail = email || `${username}@${DEFAULT_EMAIL_DOMAIN}`;
   await git.addConfig('user.name', name);
-  await git.addConfig('user.email', resolvedEmail);
-  log.debug(`Git user configured: ${name} <${resolvedEmail}>`);
+
+  const resolvedEmail = email
+    || (defaultEmailDomain ? `${username}@${defaultEmailDomain}` : null);
+
+  if (resolvedEmail) {
+    await git.addConfig('user.email', resolvedEmail);
+    log.debug(`Git user configured: ${name} <${resolvedEmail}>`);
+  } else {
+    log.debug(`Git user configured: ${name} (email from global git config)`);
+  }
 }
 
 export async function pullRepo(localPath: string): Promise<string> {
@@ -110,7 +95,8 @@ export async function pushRepoDirectly(localPath: string, message: string, files
  * Create a new branch, commit files, and push the branch to remote.
  * Returns false if there are no changes to commit.
  * Leaves the local repo on the new branch after pushing so that
- * `gf mr create` (which internally pushes HEAD) sees the correct branch.
+ * the provider's createPullRequest (which may internally push HEAD)
+ * sees the correct branch.
  * Callers should call `checkoutMaster()` when they are done.
  */
 export async function pushRepoBranch(
@@ -142,7 +128,7 @@ export async function pushRepoBranch(
 }
 
 /**
- * Switch the repo back to master. Used after pushRepoBranch + gfMrCreate.
+ * Switch the repo back to master. Used after pushRepoBranch + createPullRequest.
  */
 export async function checkoutMaster(localPath: string): Promise<void> {
   const git = createGit(localPath);

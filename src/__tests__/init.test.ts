@@ -58,8 +58,8 @@ const mockGfIsAuthenticated = vi.fn().mockReturnValue(true);
 const mockGfAuthWhoami = vi.fn().mockReturnValue('testuser');
 const mockEnsureGfInstalled = vi.fn();
 
-vi.mock('../utils/gf-cli.js', () => {
-  // Must define inside factory because vi.mock is hoisted
+// Mock the provider-level gf-cli module (init.ts now uses providers)
+vi.mock('../providers/tgit/gf-cli.js', () => {
   class RepoNotFoundError extends Error {
     constructor(repo: string) {
       super(`Repo "${repo}" not found on TGit.`);
@@ -74,6 +74,28 @@ vi.mock('../utils/gf-cli.js', () => {
     gfGetOAuthToken: vi.fn().mockReturnValue('mock-oauth-token'),
     ensureGfInstalled: () => mockEnsureGfInstalled(),
     ensureAuthenticated: vi.fn().mockReturnValue('testuser'),
+    isGfInstalled: vi.fn().mockReturnValue(true),
+    RepoNotFoundError,
+  };
+});
+
+// Also mock the backward-compat re-export (for the RepoNotFoundError import in this test)
+vi.mock('../utils/gf-cli.js', () => {
+  class RepoNotFoundError extends Error {
+    constructor(repo: string) {
+      super(`Repo "${repo}" not found on TGit.`);
+      this.name = 'RepoNotFoundError';
+    }
+  }
+  return {
+    gfRepoClone: (...args: unknown[]) => mockGfRepoClone(...args),
+    gfCreateRepo: (...args: unknown[]) => mockGfCreateRepo(...args),
+    gfIsAuthenticated: () => mockGfIsAuthenticated(),
+    gfAuthWhoami: () => mockGfAuthWhoami(),
+    gfGetOAuthToken: vi.fn().mockReturnValue('mock-oauth-token'),
+    ensureGfInstalled: () => mockEnsureGfInstalled(),
+    ensureAuthenticated: vi.fn().mockReturnValue('testuser'),
+    isGfInstalled: vi.fn().mockReturnValue(true),
     RepoNotFoundError,
   };
 });
@@ -115,9 +137,13 @@ vi.mock('../utils/fs.js', () => ({
   readFileSafe: vi.fn().mockResolvedValue(null),
 }));
 
-vi.mock('../types.js', () => ({
-  TEAMAI_HOME: '/tmp/test-teamai-home',
-}));
+vi.mock('../types.js', async (importOriginal) => {
+  const original = await importOriginal() as Record<string, unknown>;
+  return {
+    ...original,
+    TEAMAI_HOME: '/tmp/test-teamai-home',
+  };
+});
 
 // Mock readline to auto-answer prompts
 let questionAnswers: string[] = [];
@@ -136,8 +162,7 @@ vi.mock('node:readline', () => ({
 const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 
 import { init } from '../init.js';
-import { pathExists } from '../utils/fs.js';
-import { RepoNotFoundError } from '../utils/gf-cli.js';
+import { RepoNotFoundError } from '../providers/types.js';
 
 describe('init', () => {
   const HOME = process.env.HOME ?? '';

@@ -29,6 +29,17 @@
 **Depends on:** Phase 2 (搜索 + 投票) 完成。
 **Added:** 2026-03-19 by /plan-eng-review
 
+## 开源前 Git History 安全审计
+**What:** 在创建公开 GitHub 仓库之前，扫描 git history 中是否有泄露的 token、内网 URL（git.woa.com）、密码模式等敏感信息。
+**Why:** 当前仓库托管在 TGit（内网），history 中可能包含 OAuth token 嵌入 URL、.netrc 内容引用等。一旦 push 到 GitHub 公开仓库就无法撤回。
+**Pros:** 避免安全事故。开源项目的 git history 是永久公开的。
+**Cons:** 如果发现敏感信息，需要 squash history 或使用 git-filter-repo 清理，会丢失 commit 历史。
+**Context:** Design doc `jeff-master-design-20260327-132229.md` Open Question #3 提到了这个问题。建议在 PR2（GitHub provider + 开源准备）完成后、创建公开 repo 之前执行。用 `git log --all -p | grep -i 'token\|password\|oauth2:' | head -50` 快速扫描。如果干净则保留 history，否则 squash。
+**Effort:** S (human: ~2 hours / CC: ~10min)
+**Priority:** P1 — 安全相关，开源前必须完成
+**Depends on:** PR2 完成。
+**Added:** 2026-03-27 by /plan-eng-review
+
 ## E2E 负面场景测试
 **What:** 为 E2E 测试新增 token 过期、仓库无效、网络超时等负面场景用例。
 **Why:** 现有 E2E 全是 happy path，错误处理逻辑（Error Handling 表格中的 5 种场景）未被验证。
@@ -39,3 +50,14 @@
 **Priority:** P3
 **Depends on:** CI pipeline 基础版（.gitlab-ci.yml + E2E 迁移）完成。
 **Added:** 2026-03-20 by /plan-eng-review
+
+## 知识注入回路 (Phase 2 — Session Contribute 读出路径)
+**What:** `teamai pull` 时将 team repo 的 `ai-docs/` 目录同步到本地 `~/.teamai/ai-docs/`，并在 CLAUDE.md 中注入提示"团队 AI 经验文档在 ~/.teamai/ai-docs/ 可供查阅"。
+**Why:** Phase 1 完成了"写入"路径（session 经验推送到 team repo），但没有"读出"路径。没有读出，知识库只是"写了没人看的 repo"。读出是飞轮闭环的关键——其他人的 AI 工具在遇到类似场景时可以引用这些知识。
+**Pros:** 完成"写入→读出"闭环。AI 工具自动获取团队经验。团队智能飞轮开始转动。
+**Cons:** 需要修改 pull.ts 和资源处理器，中等复杂度。ai-docs 数量增长后需要考虑同步性能。
+**Context:** Phase 1 (session contribute) 在 `ai-docs/data-<title>-<random>.md` 格式存储。读出需要：(1) pull.ts 新增 ai-docs 类型同步 (2) CLAUDE.md 注入提示 (3) 未来进阶：基于工作目录和任务类型智能推荐相关文档。
+**Effort:** M (human: ~3d / CC: ~25min)
+**Priority:** P1
+**Depends on:** Phase 1 (session contribute 功能) 完成。
+**Added:** 2026-03-27 by /plan-ceo-review

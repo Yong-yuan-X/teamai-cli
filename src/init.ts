@@ -5,8 +5,7 @@ import { saveLocalConfig, loadTeamConfig } from './config.js';
 import { injectHooksToAllTools } from './hooks.js';
 import { configureGitUser, initRepo } from './utils/git.js';
 import { pushRepoDirectly } from './utils/git.js';
-import { ensureGfInstalled, ensureAuthenticated, gfRepoClone, gfCreateRepo, RepoNotFoundError } from './utils/gf-cli.js';
-import { parseRepoInput } from './utils/repo-url.js';
+import { getProvider, detectProvider, RepoNotFoundError } from './providers/index.js';
 import { ensureDir, writeFile, pathExists, expandHome, readFileSafe } from './utils/fs.js';
 import { log, spinner } from './utils/logger.js';
 import { TEAMAI_HOME, type GlobalOptions, type LocalConfig } from './types.js';
@@ -24,42 +23,45 @@ function askQuestion(prompt: string): Promise<string> {
 export async function init(options: GlobalOptions & { repo?: string }): Promise<void> {
   log.info('Initializing teamai...');
 
-  // Step 1a: Ensure gf CLI is installed
-  await ensureGfInstalled();
-
-  // Step 1b: Authenticate via gf
-  const spin = spinner('Checking authentication...').start();
-  let username: string;
-  try {
-    const { gfIsAuthenticated, gfAuthWhoami } = await import('./utils/gf-cli.js');
-    if (gfIsAuthenticated()) {
-      username = gfAuthWhoami()!;
-      spin.succeed(`Authenticated as ${username}`);
-    } else {
-      spin.info('Not logged in — starting authentication');
-      username = ensureAuthenticated();
-      log.success(`Authenticated as ${username}`);
-    }
-  } catch (e) {
-    spin.fail(`Authentication failed: ${(e as Error).message}`);
-    process.exit(1);
-  }
-
-  // Step 2: Get repo input
+  // Step 1: Get repo input first (needed to detect provider)
   let repoInput = options.repo ?? '';
   if (!repoInput) {
-    repoInput = await askQuestion('Team repo (e.g. yourteam/yourproject): ');
+    repoInput = await askQuestion('Team repo (e.g. yourteam/yourproject or https://github.com/org/repo): ');
   }
   if (!repoInput) {
     log.error('Repo is required');
     process.exit(1);
   }
 
+  // Step 1b: Detect and initialize provider from URL
+  const providerName = detectProvider(repoInput);
+  const provider = getProvider(providerName);
+  log.debug(`Detected provider: ${providerName}`);
+
   let repoInfo;
   try {
-    repoInfo = parseRepoInput(repoInput);
+    repoInfo = provider.parseRepoInput(repoInput);
   } catch (e) {
     log.error((e as Error).message);
+    process.exit(1);
+  }
+
+  // Step 2: Ensure provider tools are installed and authenticate
+  await provider.ensureInstalled();
+
+  const authSpin = spinner('Checking authentication...').start();
+  let username: string;
+  try {
+    if (provider.isAuthenticated()) {
+      username = await provider.authenticate();
+      authSpin.succeed(`Authenticated as ${username}`);
+    } else {
+      authSpin.info('Not logged in — starting authentication');
+      username = await provider.authenticate();
+      log.success(`Authenticated as ${username}`);
+    }
+  } catch (e) {
+    authSpin.fail(`Authentication failed: ${(e as Error).message}`);
     process.exit(1);
   }
 
@@ -78,12 +80,11 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
   if (!await pathExists(localPath)) {
     const cloneSpin = spinner('Cloning team repo...').start();
     try {
-      // Use gf repo clone — embeds OAuth token in remote URL for automatic auth
-      gfRepoClone(`${repoInfo.owner}/${repoInfo.repo}`, localPath);
+      provider.cloneRepo(`${repoInfo.owner}/${repoInfo.repo}`, localPath);
       cloneSpin.succeed('Team repo cloned');
     } catch (e) {
       if (e instanceof RepoNotFoundError) {
-        cloneSpin.info(`Repo ${repoInfo.owner}/${repoInfo.repo} does not exist on TGit`);
+        cloneSpin.info(`Repo ${repoInfo.owner}/${repoInfo.repo} does not exist`);
         const answer = await askQuestion(`Create repo ${repoInfo.owner}/${repoInfo.repo}? [Y/n] `);
         if (answer && answer.toLowerCase() !== 'y') {
           log.error('Aborted. Please provide an existing repo or confirm creation.');
@@ -91,7 +92,7 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
         }
         const createSpin = spinner(`Creating repo ${repoInfo.owner}/${repoInfo.repo}...`).start();
         try {
-          await gfCreateRepo(repoInfo.owner, repoInfo.repo);
+          await provider.createRepo(repoInfo.owner, repoInfo.repo);
           createSpin.succeed(`Repo ${repoInfo.owner}/${repoInfo.repo} created`);
         } catch (ce) {
           createSpin.fail(`Failed to create repo: ${(ce as Error).message}`);
@@ -100,7 +101,7 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
         // Retry clone after creation
         const retryCloneSpin = spinner('Cloning newly created repo...').start();
         try {
-          gfRepoClone(`${repoInfo.owner}/${repoInfo.repo}`, localPath);
+          provider.cloneRepo(`${repoInfo.owner}/${repoInfo.repo}`, localPath);
           retryCloneSpin.succeed('Team repo cloned');
         } catch (ce) {
           retryCloneSpin.fail(`Clone failed: ${(ce as Error).message}`);
@@ -127,7 +128,8 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
   }
 
   // Step 3.5: Configure git user for the team repo
-  await configureGitUser(localPath, username, username);
+  const emailDomain = provider.getDefaultEmailDomain() ?? undefined;
+  await configureGitUser(localPath, username, username, undefined, emailDomain);
 
   // Step 4: Load team config
   const teamConfig = await loadTeamConfig(localPath);
@@ -137,6 +139,7 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
       team: 'my-team',
       description: 'TeamAI shared resources',
       repo: repoInfo.httpsUrl,
+      provider: providerName,
       sharing: {
         rules: { enforced: [] },
         docs: { localDir: '~/.teamai/docs' },
@@ -236,14 +239,6 @@ export async function init(options: GlobalOptions & { repo?: string }): Promise<
   const reloadedTeamConfig = await loadTeamConfig(localPath);
   if (reloadedTeamConfig) {
     await injectHooksToAllTools(reloadedTeamConfig.toolPaths);
-
-    // Deploy CLI built-in skills (e.g. teamai-contribute)
-    try {
-      const { deployBuiltinSkills } = await import('./builtin-skills.js');
-      await deployBuiltinSkills(reloadedTeamConfig);
-    } catch {
-      // Non-critical — skills will be deployed on next pull
-    }
   }
 
   log.success('teamai initialized successfully!');

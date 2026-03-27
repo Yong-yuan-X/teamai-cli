@@ -55,6 +55,7 @@ describe('env-commands', () => {
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
+      provider: 'tgit' as const,
       reviewers: [],
       sharing: {
         skills: {},

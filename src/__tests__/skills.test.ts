@@ -40,6 +40,7 @@ describe('SkillsHandler.scanLocalForPush', () => {
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
+      provider: 'tgit' as const,
       reviewers: [],
       sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
       toolPaths: {
@@ -287,6 +288,7 @@ describe('SkillsHandler.pushItem', () => {
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
+      provider: 'tgit' as const,
       reviewers: [],
       sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '' }, env: { injectShellProfile: true } },
       toolPaths: {

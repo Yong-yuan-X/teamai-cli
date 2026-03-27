@@ -25,7 +25,7 @@ function makeEvent(overrides: Partial<DashboardEvent> = {}): DashboardEvent {
   };
 }
 
-// ─── contributeState read/write ────────────────────────────
+// ─── contributeState read/write (per-session files) ─────────
 
 describe('contributeState', () => {
   let tmpDir: string;
@@ -41,52 +41,77 @@ describe('contributeState', () => {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('returns defaults when state file is missing', async () => {
-    const state = await readContributeState('session-abc');
+  it('two sessions read/write without interfering', async () => {
+    // Session A writes
+    const stateA: ContributeState = {
+      toolCount: 50,
+      hinted: false,
+      contributed: false,
+    };
+    await writeContributeState('session-aaa', stateA);
+
+    // Session B writes
+    const stateB: ContributeState = {
+      toolCount: 10,
+      hinted: false,
+      contributed: false,
+    };
+    await writeContributeState('session-bbb', stateB);
+
+    // Session A reads back its own state, unaffected by B
+    const readA = await readContributeState('session-aaa');
+    expect(readA.toolCount).toBe(50);
+
+    // Session B reads back its own state, unaffected by A
+    const readB = await readContributeState('session-bbb');
+    expect(readB.toolCount).toBe(10);
+  });
+
+  it('returns defaults when session file does not exist', async () => {
+    const state = await readContributeState('nonexistent-session');
     expect(state).toEqual({
-      sessionId: 'session-abc',
       toolCount: 0,
       hinted: false,
       contributed: false,
     });
   });
 
-  it('returns defaults when state file is corrupted JSON', async () => {
-    const statePath = path.join(tmpDir, '.teamai', 'contribute-state.json');
-    fs.mkdirSync(path.dirname(statePath), { recursive: true });
-    fs.writeFileSync(statePath, '{broken json!!!}', 'utf-8');
+  it('returns defaults when session file contains corrupted JSON', async () => {
+    const sessionsDir = path.join(tmpDir, '.teamai', 'sessions');
+    fs.mkdirSync(sessionsDir, { recursive: true });
+    fs.writeFileSync(path.join(sessionsDir, 'broken-session.json'), '{not valid!!!}', 'utf-8');
 
-    const state = await readContributeState('session-abc');
-    expect(state.sessionId).toBe('session-abc');
-    expect(state.toolCount).toBe(0);
+    const state = await readContributeState('broken-session');
+    expect(state).toEqual({
+      toolCount: 0,
+      hinted: false,
+      contributed: false,
+    });
   });
 
-  it('reads back written state for same session', async () => {
-    const state: ContributeState = {
-      sessionId: 'session-xyz',
-      toolCount: 42,
-      hinted: true,
-      contributed: false,
-    };
-    await writeContributeState(state);
+  it('cleans up session files older than 24 hours on write', async () => {
+    const sessionsDir = path.join(tmpDir, '.teamai', 'sessions');
+    fs.mkdirSync(sessionsDir, { recursive: true });
 
-    const read = await readContributeState('session-xyz');
-    expect(read).toEqual(state);
-  });
+    // Create an old session file with mtime 25 hours ago
+    const oldFile = path.join(sessionsDir, 'old-session.json');
+    fs.writeFileSync(oldFile, JSON.stringify({ toolCount: 5, hinted: false, contributed: false }));
+    const pastTime = Date.now() - 25 * 60 * 60 * 1000;
+    fs.utimesSync(oldFile, new Date(pastTime), new Date(pastTime));
 
-  it('returns defaults when sessionId differs from stored state', async () => {
-    const state: ContributeState = {
-      sessionId: 'old-session',
-      toolCount: 99,
-      hinted: true,
-      contributed: false,
-    };
-    await writeContributeState(state);
+    // Create a recent session file
+    const recentFile = path.join(sessionsDir, 'recent-session.json');
+    fs.writeFileSync(recentFile, JSON.stringify({ toolCount: 3, hinted: false, contributed: false }));
 
-    const read = await readContributeState('new-session');
-    expect(read.sessionId).toBe('new-session');
-    expect(read.toolCount).toBe(0);
-    expect(read.hinted).toBe(false);
+    // Writing a new session triggers cleanup
+    await writeContributeState('new-session', { toolCount: 1, hinted: false, contributed: false });
+
+    // Old file should be gone
+    expect(fs.existsSync(oldFile)).toBe(false);
+    // Recent file should still exist
+    expect(fs.existsSync(recentFile)).toBe(true);
+    // New file should exist
+    expect(fs.existsSync(path.join(sessionsDir, 'new-session.json'))).toBe(true);
   });
 });
 

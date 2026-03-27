@@ -103,6 +103,8 @@ describe('SkillsHandler.pullItem — skip uninstalled tools', () => {
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
+      provider: 'tgit' as const,
+      reviewers: [],
       sharing: {
         skills: {},
         rules: { enforced: [] },
@@ -200,6 +202,8 @@ describe('RulesHandler.pullItem — skip uninstalled tools', () => {
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
+      provider: 'tgit' as const,
+      reviewers: [],
       sharing: {
         skills: {},
         rules: { enforced: [] },
@@ -294,6 +298,8 @@ describe('RulesHandler.pullAllRules — skip CLAUDE.md update for uninstalled to
       team: 'test',
       description: '',
       repo: 'https://git.woa.com/test/repo.git',
+      provider: 'tgit' as const,
+      reviewers: [],
       sharing: {
         skills: {},
         rules: { enforced: [] },

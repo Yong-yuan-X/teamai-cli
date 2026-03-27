@@ -1,11 +1,9 @@
 import path from 'node:path';
 import { loadLocalConfig, loadTeamConfig } from './config.js';
 import { pathExists, readFileSafe } from './utils/fs.js';
-import { isGfInstalled, gfIsAuthenticated } from './utils/gf-cli.js';
 import { log } from './utils/logger.js';
 import type { GlobalOptions } from './types.js';
-import { TeamaiConfigSchema, TEAMAI_ENV_START, type TeamaiConfig } from './types.js';
-import { TEAMAI_HOOK_SUBCOMMANDS } from './hooks.js';
+import { TeamaiConfigSchema, TEAMAI_ENV_START, TEAMAI_HOOK_DESCRIPTION_PREFIX, type TeamaiConfig } from './types.js';
 
 interface Check {
   name: string;
@@ -13,20 +11,24 @@ interface Check {
   fix?: string;
 }
 
+// Tools that use Cursor hooks.json format (no description field)
+const CURSOR_TOOLS = new Set(['cursor']);
+
 function buildHookChecks(toolPaths: TeamaiConfig['toolPaths']): Check[] {
   const checks: Check[] = [];
   for (const [tool, paths] of Object.entries(toolPaths)) {
     if (!paths.settings) continue;
     checks.push({
-      name: `teamai hooks in ${tool} settings`,
+      name: `teamai hook in ${tool} settings`,
       check: async () => {
         const settingsPath = path.join(process.env.HOME ?? '', paths.settings!);
         if (!await pathExists(settingsPath)) return false;
         const content = await readFileSafe(settingsPath);
-        if (!content) return false;
-        return TEAMAI_HOOK_SUBCOMMANDS.every(
-          (subcmd) => content.includes(`teamai ${subcmd}`)
-        );
+        // Cursor hooks.json has no description field; detect by command content
+        if (CURSOR_TOOLS.has(tool)) {
+          return content?.includes('teamai pull') ?? false;
+        }
+        return content?.includes(TEAMAI_HOOK_DESCRIPTION_PREFIX) ?? false;
       },
       fix: 'Run `teamai init` to inject hooks',
     });
@@ -38,25 +40,36 @@ export async function doctor(options: GlobalOptions): Promise<void> {
   log.info('Running diagnostics...\n');
   const localConfig = await loadLocalConfig();
 
-  // Try to load team config for dynamic tool paths
+  // Try to load team config for dynamic tool paths and provider
   let teamConfig: TeamaiConfig | null = null;
   if (localConfig) {
     teamConfig = await loadTeamConfig(localConfig.repo.localPath);
   }
   // Fall back to schema defaults if team config is unavailable
   const toolPaths = teamConfig?.toolPaths ?? TeamaiConfigSchema.shape.toolPaths.parse(undefined);
+  const providerName = teamConfig?.provider ?? 'tgit';
 
-  const checks: Check[] = [
-    {
-      name: 'gf CLI is installed',
-      check: async () => isGfInstalled(),
-      fix: 'Run `teamai init` to install gf CLI automatically',
-    },
-    {
-      name: 'gf CLI is authenticated',
-      check: async () => gfIsAuthenticated(),
-      fix: 'Run `teamai init` to authenticate via gf auth login',
-    },
+  const checks: Check[] = [];
+
+  // Provider-specific checks: gf CLI only needed for TGit
+  if (providerName === 'tgit') {
+    // Dynamic import to avoid loading gf-cli code when not needed
+    const { isGfInstalled, gfIsAuthenticated } = await import('./providers/tgit/index.js');
+    checks.push(
+      {
+        name: 'gf CLI is installed',
+        check: async () => isGfInstalled(),
+        fix: 'Run `teamai init` to install gf CLI automatically',
+      },
+      {
+        name: 'gf CLI is authenticated',
+        check: async () => gfIsAuthenticated(),
+        fix: 'Run `teamai init` to authenticate via gf auth login',
+      },
+    );
+  }
+
+  checks.push(
     {
       name: 'Local config exists (~/.teamai/config.yaml)',
       check: async () => localConfig !== null,
@@ -100,7 +113,7 @@ export async function doctor(options: GlobalOptions): Promise<void> {
       },
       fix: 'Run `teamai pull` to inject env variables into shell profile',
     },
-  ];
+  );
 
   let allPassed = true;
   for (const { name, check, fix } of checks) {

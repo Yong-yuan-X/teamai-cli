@@ -32,10 +32,6 @@ vi.mock('node:fs', () => ({
   },
 }));
 
-vi.mock('../utils/gf-cli.js', () => ({
-  gfGetOAuthToken: vi.fn().mockReturnValue('mock-oauth-token'),
-}));
-
 vi.mock('../utils/logger.js', () => ({
   log: {
     info: vi.fn(),
@@ -168,14 +164,14 @@ describe('configureGitUser', () => {
   });
 
   it('should set user.name and user.email with default domain', async () => {
-    await configureGitUser('/repo', 'alice', 'Alice');
+    await configureGitUser('/repo', 'alice', 'Alice', undefined, 'tencent.com');
 
     expect(mockGit.addConfig).toHaveBeenCalledWith('user.name', 'Alice');
     expect(mockGit.addConfig).toHaveBeenCalledWith('user.email', 'alice@tencent.com');
   });
 
   it('should fall back to username when displayName is not provided', async () => {
-    await configureGitUser('/repo', 'bob');
+    await configureGitUser('/repo', 'bob', undefined, undefined, 'tencent.com');
 
     expect(mockGit.addConfig).toHaveBeenCalledWith('user.name', 'bob');
     expect(mockGit.addConfig).toHaveBeenCalledWith('user.email', 'bob@tencent.com');
