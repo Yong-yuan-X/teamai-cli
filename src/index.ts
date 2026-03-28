@@ -283,4 +283,16 @@ program
     await contribute({ ...globalOpts, ...cmdOpts });
   });
 
+// ─── Recall commands ─────────────────────────────────────
+
+program
+  .command('recall [query...]')
+  .description('Search team learnings knowledge base')
+  .action(async (queryParts) => {
+    const globalOpts = program.opts() as GlobalOptions;
+    const query = (queryParts as string[]).join(' ');
+    const { recall } = await import('./recall.js');
+    await recall(query, globalOpts);
+  });
+
 program.parse();

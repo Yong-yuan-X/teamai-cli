@@ -1,10 +1,12 @@
 import path from 'node:path';
+import fse from 'fs-extra';
 import { requireInit, loadState, saveState } from './config.js';
 import { pullRepo } from './utils/git.js';
 import { log, spinner } from './utils/logger.js';
-import { pathExists, remove } from './utils/fs.js';
+import { pathExists, remove, listFiles } from './utils/fs.js';
 import { getHandler, RulesHandler, DocsHandler, EnvHandler } from './resources/index.js';
 import type { GlobalOptions, ResourceType, ResourceItem, TeamaiConfig } from './types.js';
+import { LEARNINGS_LOCAL_DIR } from './types.js';
 
 /**
  * Collect names of resources that already exist locally (before pull).
@@ -207,6 +209,33 @@ export async function pull(options: GlobalOptions): Promise<void> {
     const state = await loadState();
     state.lastPull = new Date().toISOString();
     await saveState(state);
+  }
+
+  // Step 3.5: Sync learnings and rebuild search index
+  if (!options.dryRun) {
+    try {
+      const learningsRepoDir = path.join(localConfig.repo.localPath, 'learnings');
+      if (await pathExists(learningsRepoDir)) {
+        await fse.copy(learningsRepoDir, LEARNINGS_LOCAL_DIR, {
+          overwrite: true,
+          filter: (src: string) => !path.basename(src).startsWith('.'),
+        });
+        const allFiles = await listFiles(learningsRepoDir);
+        const mdFiles = allFiles.filter((f) => f.endsWith('.md'));
+        if (mdFiles.length > 0) {
+          const votesDir = path.join(localConfig.repo.localPath, 'votes');
+          const votesExist = await pathExists(votesDir);
+          const { buildIndex } = await import('./utils/search-index.js');
+          const elapsed = await buildIndex(
+            LEARNINGS_LOCAL_DIR,
+            votesExist ? votesDir : undefined,
+          );
+          log.success(`Synced ${mdFiles.length} learnings (index: ${elapsed}ms)`);
+        }
+      }
+    } catch (e) {
+      log.debug(`Learnings sync skipped: ${(e as Error).message}`);
+    }
   }
 
   // Step 4: Deploy CLI built-in skills (e.g. teamai-contribute)

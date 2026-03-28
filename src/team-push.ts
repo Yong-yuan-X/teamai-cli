@@ -3,9 +3,10 @@ import path from 'node:path';
 import { readUsageEvents, truncateUsageAfterReport } from './usage-tracker.js';
 import { aggregateUsage } from './stats.js';
 import { pushRepoDirectly, pullRepo } from './utils/git.js';
-import { writeFile, readFileSafe, ensureDir } from './utils/fs.js';
+import { writeFile, readFileSafe, ensureDir, pathExists, listFiles } from './utils/fs.js';
 import { log } from './utils/logger.js';
 import type { UserStats } from './types.js';
+import { VOTES_LOCAL_DIR } from './types.js';
 
 // ─── Auto-report flow (during teamai pull) ─────────────
 //
@@ -122,11 +123,32 @@ export async function reportUsageToTeam(
 
     await writeFile(statsPath, YAML.stringify(merged));
 
+    // Also stage any pending local votes
+    const filesToPush: string[] = [`stats/${username}.yaml`];
+    try {
+      if (await pathExists(VOTES_LOCAL_DIR)) {
+        const voteFiles = await listFiles(VOTES_LOCAL_DIR);
+        for (const vf of voteFiles) {
+          if (!vf.endsWith('.yaml') && !vf.endsWith('.yml')) continue;
+          const localVotePath = path.join(VOTES_LOCAL_DIR, vf);
+          const repoVotePath = path.join(repoPath, 'votes', vf);
+          const content = await readFileSafe(localVotePath);
+          if (content) {
+            await ensureDir(path.join(repoPath, 'votes'));
+            await writeFile(repoVotePath, content);
+            filesToPush.push(`votes/${vf}`);
+          }
+        }
+      }
+    } catch (e) {
+      log.debug(`Vote staging skipped: ${(e as Error).message}`);
+    }
+
     // Commit and push with timeout
     const pushPromise = pushRepoDirectly(
       repoPath,
       `[teamai] Update usage stats for ${username}`,
-      [`stats/${username}.yaml`],
+      filesToPush,
     );
 
     const timeoutPromise = new Promise<never>((_, reject) =>

@@ -272,3 +272,65 @@ export const CONTRIBUTE_SMART_THRESHOLD = 35;
 
 /** Directory for per-session contribute state files */
 export const CONTRIBUTE_SESSIONS_DIR = `${TEAMAI_HOME}/sessions`;
+
+// ─── Learnings / Recall (Git-Native Memory) ──────────
+//
+//  Data flow:
+//
+//  teamai contribute → learnings/<slug>.md (team repo, with frontmatter)
+//                          │
+//                     teamai pull
+//                          │
+//                          ▼
+//  ~/.teamai/learnings/ (local copy) → search-index.json (built at pull)
+//                          │
+//                     teamai recall <query>
+//                          │
+//                          ▼
+//  Ranked results → AI reads → auto-upvote → votes/<user>.yaml
+//
+
+/** Parsed frontmatter from a learning document. */
+export interface LearningDocMeta {
+  title?: string;
+  author?: string;
+  date?: string;
+  tags?: string[];
+}
+
+/** One entry in the local search index (search-index.json). */
+export interface SearchIndexEntry {
+  /** Original filename (e.g. "api-timeout-修复-2026-03-20-abc123.md") */
+  filename: string;
+  /** Title from frontmatter, or derived from filename */
+  title: string;
+  /** Author from frontmatter */
+  author: string;
+  /** ISO date string */
+  date: string;
+  /** Tags from frontmatter */
+  tags: string[];
+  /** Tokenized terms for search matching (title + tags + body excerpt) */
+  tokens: string[];
+  /** Vote count (aggregated at index build time) */
+  votes: number;
+}
+
+/** Shape of the search-index.json file. */
+export interface SearchIndex {
+  /** ISO timestamp of when the index was built */
+  builtAt: string;
+  /** Elapsed ms to build the index */
+  elapsedMs: number;
+  /** Index entries, one per learning document */
+  entries: SearchIndexEntry[];
+}
+
+/** Per-user vote file (votes/<user>.yaml). */
+export interface UserVotes {
+  votes: Record<string, { at: string }>;
+}
+
+export const LEARNINGS_LOCAL_DIR = `${TEAMAI_HOME}/learnings`;
+export const SEARCH_INDEX_PATH = `${TEAMAI_HOME}/search-index.json`;
+export const VOTES_LOCAL_DIR = `${TEAMAI_HOME}/votes`;
