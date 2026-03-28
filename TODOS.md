@@ -52,11 +52,11 @@
 **Added:** 2026-03-20 by /plan-eng-review
 
 ## 知识注入回路 (Phase 2 — Session Contribute 读出路径)
-**What:** `teamai pull` 时将 team repo 的 `ai-docs/` 目录同步到本地 `~/.teamai/ai-docs/`，并在 CLAUDE.md 中注入提示"团队 AI 经验文档在 ~/.teamai/ai-docs/ 可供查阅"。
+**What:** `teamai pull` 时将 team repo 的 `learnings/` 目录同步到本地 `~/.teamai/learnings/`，并在 CLAUDE.md 中注入提示"团队 AI 经验文档在 ~/.teamai/learnings/ 可供查阅"。
 **Why:** Phase 1 完成了"写入"路径（session 经验推送到 team repo），但没有"读出"路径。没有读出，知识库只是"写了没人看的 repo"。读出是飞轮闭环的关键——其他人的 AI 工具在遇到类似场景时可以引用这些知识。
 **Pros:** 完成"写入→读出"闭环。AI 工具自动获取团队经验。团队智能飞轮开始转动。
-**Cons:** 需要修改 pull.ts 和资源处理器，中等复杂度。ai-docs 数量增长后需要考虑同步性能。
-**Context:** Phase 1 (session contribute) 在 `ai-docs/data-<title>-<random>.md` 格式存储。读出需要：(1) pull.ts 新增 ai-docs 类型同步 (2) CLAUDE.md 注入提示 (3) 未来进阶：基于工作目录和任务类型智能推荐相关文档。
+**Cons:** 需要修改 pull.ts 和资源处理器，中等复杂度。learnings 数量增长后需要考虑同步性能。
+**Context:** Phase 1 (session contribute) 在 `learnings/<title-slug>-<date>-<random>.md` 格式存储。读出需要：(1) pull.ts 新增 learnings 类型同步 (2) CLAUDE.md 注入提示 (3) 未来进阶：基于工作目录和任务类型智能推荐相关文档。
 **Effort:** M (human: ~3d / CC: ~25min)
 **Priority:** P1
 **Depends on:** Phase 1 (session contribute 功能) 完成。

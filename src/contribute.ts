@@ -13,11 +13,11 @@ import type { GlobalOptions } from './types.js';
 //      │
 //      ├─ requireInit() → repoPath + username
 //      ├─ readFile(path) → validate non-empty
-//      ├─ generateFilename(title) → ai-docs/data-<title>-<random>.md
-//      ├─ ensureDir(repoPath/ai-docs/)
-//      ├─ copyFile → repoPath/ai-docs/<filename>
+//      ├─ generateFilename(title) → learnings/<title-slug>-<date>-<random>.md
+//      ├─ ensureDir(repoPath/learnings/)
+//      ├─ copyFile → repoPath/learnings/<filename>
 //      ├─ pullRepo() → get latest (best effort)
-//      ├─ pushRepoDirectly(repoPath, commitMsg, [ai-docs/<filename>])
+//      ├─ pushRepoDirectly(repoPath, commitMsg, [learnings/<filename>])
 //      │   ├── success → markContributed(sessionId)
 //      │   └── fail → log error
 //      └─ done
@@ -38,15 +38,16 @@ function generateFilename(title?: string): string {
     .replace(/^-+|-+$/g, '') // Trim leading/trailing hyphens
     .slice(0, 50);
 
+  const date = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const random = Math.random().toString(36).slice(2, 8);
-  return `data-${slug}-${random}.md`;
+  return `${slug}-${date}-${random}.md`;
 }
 
 /**
  * Handle `teamai contribute --file <path> [--title <title>]`.
  *
  * Pushes a contribution document directly to master in the team repo's
- * `ai-docs/` directory. No branch/MR — contributions are lightweight
+ * `learnings/` directory. No branch/MR — contributions are lightweight
  * knowledge items, not code changes.
  */
 export async function contribute(
@@ -78,7 +79,7 @@ export async function contribute(
 
   if (options.dryRun) {
     const filename = generateFilename(options.title);
-    log.info(`[dry-run] Would push: ai-docs/${filename} (${content.length} bytes)`);
+    log.info(`[dry-run] Would push: learnings/${filename} (${content.length} bytes)`);
     return;
   }
 
@@ -86,7 +87,7 @@ export async function contribute(
 
   try {
     // Prepare destination
-    const aiDocsDir = path.join(repoPath, 'ai-docs');
+    const aiDocsDir = path.join(repoPath, 'learnings');
     await ensureDir(aiDocsDir);
 
     const filename = generateFilename(options.title);
@@ -107,7 +108,7 @@ export async function contribute(
     const pushPromise = pushRepoDirectly(
       repoPath,
       commitMsg,
-      [`ai-docs/${filename}`],
+      [`learnings/${filename}`],
     );
 
     const timeoutPromise = new Promise<never>((__, reject) =>
@@ -116,7 +117,7 @@ export async function contribute(
 
     await Promise.race([pushPromise, timeoutPromise]);
 
-    pushSpin.succeed(`Contributed: ai-docs/${filename}`);
+    pushSpin.succeed(`Contributed: learnings/${filename}`);
 
     // Mark session as contributed (dedup for contribute-check)
     const sessionId = options.sessionId || process.env.CLAUDE_SESSION_ID || '';

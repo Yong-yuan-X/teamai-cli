@@ -111,13 +111,14 @@ async function cleanupStaleSessions(dir: string, currentSessionId: string): Prom
  * Compute a "contribution value" score for a session based on its events.
  *
  * Score components (0-100):
+ * - Tool count (gradient): 30→10, 50→15, 80+→20 (max 20)
  * - Tool diversity: unique tool names / total calls × 30 (max 30)
- * - Skill usage: any Skill tool invoked → +25
- * - Error indicators: any error-related events → +25
+ * - Skill usage: any Skill tool invoked → +15
+ * - Error indicators: any error-related events → +15
  * - Session duration: > 30 min → +20
  *
- * A session that used diverse tools, invoked skills, hit errors,
- * and lasted a while is very likely worth documenting.
+ * A session that used many tools, showed diversity, and lasted a while
+ * is very likely worth documenting.
  */
 export function computeSmartScore(events: DashboardEvent[]): number {
   if (events.length === 0) return 0;
@@ -125,10 +126,12 @@ export function computeSmartScore(events: DashboardEvent[]): number {
   const toolNames = new Set<string>();
   let hasSkills = false;
   let hasErrors = false;
+  let totalToolCalls = 0;
 
   for (const event of events) {
     if (event.type === 'tool_use' && event.toolName) {
       toolNames.add(event.toolName);
+      totalToolCalls++;
       if (event.toolName === 'Skill') {
         hasSkills = true;
       }
@@ -150,21 +153,26 @@ export function computeSmartScore(events: DashboardEvent[]): number {
 
   let score = 0;
 
+  // Tool count — gradient (max 20 points)
+  // 30+ calls → 10, scales linearly up to 80+ → 20
+  if (totalToolCalls >= 30) {
+    score += Math.min(20, Math.round(((totalToolCalls - 30) / 50) * 10) + 10);
+  }
+
   // Tool diversity (max 30 points)
-  const toolCount = events.filter((e) => e.type === 'tool_use').length;
-  if (toolCount > 0) {
-    const diversity = toolNames.size / Math.min(toolCount, 20); // Cap denominator at 20
+  if (totalToolCalls > 0) {
+    const diversity = toolNames.size / Math.min(totalToolCalls, 20); // Cap denominator at 20
     score += Math.min(Math.round(diversity * 30), 30);
   }
 
-  // Skill usage (25 points)
+  // Skill usage (15 points)
   if (hasSkills) {
-    score += 25;
+    score += 15;
   }
 
-  // Error indicators (25 points)
+  // Error indicators (15 points)
   if (hasErrors) {
-    score += 25;
+    score += 15;
   }
 
   // Session duration (20 points if > 30 min)
@@ -267,7 +275,7 @@ export async function contributeCheck(toolArg?: string): Promise<void> {
   const hint = [
     `[teamai] 本次 session 内容丰富（${toolCount} 次工具调用，${uniqueTools} 种不同工具）。`,
     `建议运行 /teamai-share-learnings 总结本次 session 的经验并分享给团队。`,
-    `总结文档将保存到团队仓库的 ai-docs/ 目录。`,
+    `总结文档将保存到团队仓库的 learnings/ 目录。`,
   ].join('');
 
   // STDOUT goes to Claude Code as hook output → AI context

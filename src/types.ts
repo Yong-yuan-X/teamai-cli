@@ -268,7 +268,7 @@ export interface ContributeState {
 export const CONTRIBUTE_BASE_THRESHOLD = 50;
 
 /** Smart score threshold: minimum score to show contribute hint */
-export const CONTRIBUTE_SMART_THRESHOLD = 60;
+export const CONTRIBUTE_SMART_THRESHOLD = 35;
 
 /** Directory for per-session contribute state files */
 export const CONTRIBUTE_SESSIONS_DIR = `${TEAMAI_HOME}/sessions`;

@@ -62,7 +62,7 @@ describe('contribute', () => {
 
   it('generates valid filenames with title', () => {
     // Test the filename generation pattern indirectly
-    // The format is: data-<slug>-<random>.md
+    // The format is: <slug>-<date>-<random>.md
     const title = 'K8s Pod Startup Timeout Fix!!!';
     const slug = title
       .toLowerCase()
@@ -104,8 +104,8 @@ describe('contribute', () => {
     // dry-run should not push
     await contribute({ file: contentFile, title: 'Test', dryRun: true });
 
-    // No ai-docs directory should be created in the repo
-    const aiDocsDir = path.join(tmpDir, 'ai-docs');
+    // No learnings directory should be created in the repo
+    const aiDocsDir = path.join(tmpDir, 'learnings');
     // In dry-run, the file should NOT be copied
     // (contribute exits early before mkdir)
     vi.doUnmock('../config.js');

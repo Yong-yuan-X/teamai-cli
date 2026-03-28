@@ -123,14 +123,15 @@ describe('computeSmartScore', () => {
   });
 
   it('scores low for single-tool repetitive session', () => {
-    // 100 calls of the same tool — low diversity
-    const events = Array.from({ length: 100 }, () =>
+    // 20 calls of the same tool — low diversity, below toolCount threshold
+    const events = Array.from({ length: 20 }, () =>
       makeEvent({ toolName: 'Bash' }),
     );
     const score = computeSmartScore(events);
     // diversity: 1/20 * 30 = 1.5 → round to 2
+    // toolCount < 30: +0
     // No skills, no errors, no duration
-    expect(score).toBeLessThan(30);
+    expect(score).toBeLessThan(10);
   });
 
   it('scores high for diverse session with skills and errors', () => {
@@ -155,15 +156,16 @@ describe('computeSmartScore', () => {
     ];
 
     const score = computeSmartScore(events);
-    // diversity: high (7 unique / 8 tool_use = 0.875 → 26)
-    // hasSkills: +25
-    // hasErrors: +25
+    // diversity: high (7 unique / 8 tool_use ≈ 26)
+    // hasSkills: +15
+    // hasErrors: +15
     // duration > 30 min: +20
-    // Total: ~96
-    expect(score).toBeGreaterThanOrEqual(60);
+    // toolCount = 8 (< 30): +0
+    // Total: ~76
+    expect(score).toBeGreaterThanOrEqual(35);
   });
 
-  it('gives 25 points for skill usage', () => {
+  it('gives 15 points for skill usage', () => {
     const base = [
       makeEvent({ toolName: 'Bash' }),
       makeEvent({ toolName: 'Read' }),
@@ -175,7 +177,7 @@ describe('computeSmartScore', () => {
 
     const scoreBase = computeSmartScore(base);
     const scoreWithSkill = computeSmartScore(withSkill);
-    expect(scoreWithSkill - scoreBase).toBeGreaterThanOrEqual(20); // ~25 but diversity changes too
+    expect(scoreWithSkill - scoreBase).toBeGreaterThanOrEqual(10); // ~15 but diversity changes too
   });
 
   it('detects error keywords in prompts', () => {
@@ -187,8 +189,8 @@ describe('computeSmartScore', () => {
       }),
     ];
     const score = computeSmartScore(events);
-    // error: +25, some diversity points
-    expect(score).toBeGreaterThanOrEqual(25);
+    // error: +15, some diversity points
+    expect(score).toBeGreaterThanOrEqual(15);
   });
 
   it('gives 20 points for long sessions', () => {
@@ -201,5 +203,44 @@ describe('computeSmartScore', () => {
     // 1 unique tool / 2 calls → diversity low
     // duration > 30 min → +20
     expect(score).toBeGreaterThanOrEqual(20);
+  });
+
+  it('gives toolCount gradient points for 30+ calls', () => {
+    // 30 calls → should get 10 points from toolCount
+    const events30 = Array.from({ length: 30 }, () =>
+      makeEvent({ toolName: 'Bash' }),
+    );
+    const score30 = computeSmartScore(events30);
+
+    // 80 calls → should get 20 points from toolCount
+    const events80 = Array.from({ length: 80 }, () =>
+      makeEvent({ toolName: 'Bash' }),
+    );
+    const score80 = computeSmartScore(events80);
+
+    // 80 calls should score higher than 30 calls due to toolCount gradient
+    expect(score80).toBeGreaterThan(score30);
+    // 30 calls should get at least 10 toolCount points + some diversity
+    expect(score30).toBeGreaterThanOrEqual(10);
+  });
+
+  it('typical session (50 calls, 3 tools, 40min) exceeds threshold of 35', () => {
+    const now = Date.now();
+    // Simulate: 50 calls, 3 unique tools (Bash/Read/Edit), 40 min duration, no Skill/Error
+    const events: DashboardEvent[] = [];
+    for (let i = 0; i < 50; i++) {
+      const tools = ['Bash', 'Read', 'Edit'];
+      const minutesAgo = 40 - (i * 40) / 50;
+      events.push(
+        makeEvent({
+          toolName: tools[i % 3],
+          timestamp: new Date(now - minutesAgo * 60 * 1000).toISOString(),
+        }),
+      );
+    }
+
+    const score = computeSmartScore(events);
+    // toolCount=15 (50 calls) + diversity≈5 (3/20) + duration=20 (40min) = ~40
+    expect(score).toBeGreaterThanOrEqual(35);
   });
 });
