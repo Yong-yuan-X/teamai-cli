@@ -9,10 +9,7 @@ env:
 stages:
 - stage: validate
   tasks:
-  - worker:
-      label: PUBLIC
-      language: node
-    task: lint
+  - task: lint
     cmds:
     - plugin: cmds
       params:
@@ -21,10 +18,7 @@ stages:
         - node --version && npm --version
         - npm ci --ignore-scripts
         - npx tsc --noEmit
-  - worker:
-      label: PUBLIC
-      language: node
-    task: test
+  - task: test
     artifacts:
     - coverage/cobertura-coverage.xml
     cmds:
@@ -37,10 +31,7 @@ stages:
         - npx vitest run --coverage
 - stage: build
   tasks:
-  - worker:
-      label: PUBLIC
-      language: node
-    task: build
+  - task: build
     artifacts:
     - dist/
     cmds:
@@ -52,10 +43,7 @@ stages:
         - npm run build
 - stage: e2e
   tasks:
-  - worker:
-      label: PUBLIC
-      language: node
-    task: e2e
+  - task: e2e
     cmds:
     - plugin: cmds
       params:
@@ -68,10 +56,7 @@ stages:
         - npx vitest run --config vitest.e2e.config.ts
 - stage: publish
   tasks:
-  - worker:
-      label: PUBLIC
-      language: node
-    task: publish
+  - task: publish
     cmds:
     - plugin: cmds
       params:
