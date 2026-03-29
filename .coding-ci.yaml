@@ -60,6 +60,9 @@ stages:
       params:
         cmds:
         - echo "=== Publish to tnpm ==="
+        - "if [ \"$QCI_TRIGGER_TYPE\" != \"TRIGGER_TAG\" ]; then\n  echo \"⏭  Not a\
+          \ tag build (trigger=$QCI_TRIGGER_TYPE), skipping publish\"\n  exit 0\n\
+          fi\n"
         - "PKG_NAME=$(node -p \"require('./package.json').name\")\nPKG_VERSION=$(node\
           \ -p \"require('./package.json').version\")\nif npm view \"${PKG_NAME}@${PKG_VERSION}\"\
           \ version --registry http://r.tnpm.oa.com 2>/dev/null; then\n  echo \"ERROR:\
