@@ -49,11 +49,9 @@ stages:
       params:
         cmds:
         - echo "=== E2E Tests ==="
-        - "if [ -z \"$TEAMAI_TEST_TOKEN\" ]; then\n  echo \"⏭  TEAMAI_TEST_TOKEN not\
-          \ set, skipping E2E\"\n  exit 0\nfi\n"
         - npm ci
         - npm run build
-        - npx vitest run --config vitest.e2e.config.ts
+        - TEAMAI_TEST_TOKEN= TEAMAI_TEST_REPO_URL= npx vitest run --config vitest.e2e.config.ts
 - stage: publish
   tasks:
   - task: publish
