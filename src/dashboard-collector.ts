@@ -61,7 +61,7 @@ function deriveSessionId(hookData: Record<string, unknown>): string {
 
 /**
  * Map hook event names to dashboard event types.
- * Supports both Claude Code PascalCase and Cursor camelCase naming.
+ * Supports Claude Code (PascalCase), Cursor and CodeBuddy (camelCase) formats.
  */
 function mapEventType(hookEventName: string): DashboardEventType | null {
   switch (hookEventName) {

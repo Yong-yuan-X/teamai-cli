@@ -3,27 +3,27 @@ import { readJson, writeJson, expandHome, ensureDir } from './utils/fs.js';
 import { log } from './utils/logger.js';
 import { TEAMAI_HOOK_DESCRIPTION_PREFIX } from './types.js';
 
-const TEAMAI_PULL_COMMAND = 'bash -lc "teamai pull" 2>/dev/null || true';
-const TEAMAI_UPDATE_COMMAND = 'bash -lc "teamai update" 2>/dev/null || true';
+const TEAMAI_PULL_COMMAND = 'bash -lc "teamai pull 2>/dev/null" || true';
+const TEAMAI_UPDATE_COMMAND = 'bash -lc "teamai update 2>/dev/null" || true';
 
 /** Generate the track command with tool identifier for correct usage attribution. */
 function getTrackCommand(tool: string): string {
-  return `bash -lc "teamai track --stdin --tool ${tool}" 2>>~/.teamai/debug.log || true`;
+  return `bash -lc "teamai track --stdin --tool ${tool} 2>/dev/null" || true`;
 }
 
 /** Generate the track-slash command with tool identifier. */
 function getTrackSlashCommand(tool: string): string {
-  return `bash -lc "teamai track-slash --stdin --tool ${tool}" 2>>~/.teamai/debug.log || true`;
+  return `bash -lc "teamai track-slash --stdin --tool ${tool} 2>/dev/null" || true`;
 }
 
 /** Generate the dashboard-report command with tool identifier. */
 function getDashboardReportCommand(tool: string): string {
-  return `bash -lc "teamai dashboard-report --stdin --tool ${tool}" 2>>~/.teamai/debug.log || true`;
+  return `bash -lc "teamai dashboard-report --stdin --tool ${tool} 2>/dev/null" || true`;
 }
 
 /** Generate the contribute-check command with tool identifier. */
 function getContributeCheckCommand(tool: string): string {
-  return `bash -lc "teamai contribute-check --stdin --tool ${tool}" 2>>~/.teamai/debug.log || true`;
+  return `bash -lc "teamai contribute-check --stdin --tool ${tool} 2>/dev/null" || true`;
 }
 
 /** Subcommands expected in each tool settings file (for `teamai doctor`). */
@@ -204,6 +204,18 @@ function buildCursorHooks(tool: string): Record<string, CursorHookEntry[]> {
   };
 }
 
+// ─── CodeBuddy format ───────────────────────────────────────
+//
+//  CodeBuddy uses the same settings.json structure AND PascalCase event
+//  keys as Claude Code (SessionStart, Stop, PostToolUse, UserPromptSubmit).
+//  Its HookExecutor internally looks up hooks by PascalCase key.
+//
+//  The only difference is that the hook_event_name field in STDIN JSON
+//  uses camelCase names (sessionStart, stop, postToolUse, beforeSubmitPrompt).
+//  This is handled in dashboard-collector.ts mapEventType(), not here.
+//
+//  Therefore CodeBuddy shares the same injection logic as Claude.
+
 // ─── Tool format detection ──────────────────────────────────
 
 type ToolFormat = 'claude' | 'cursor';
@@ -211,7 +223,8 @@ type ToolFormat = 'claude' | 'cursor';
 const CURSOR_TOOLS = new Set(['cursor']);
 
 function detectFormat(tool: string): ToolFormat {
-  return CURSOR_TOOLS.has(tool) ? 'cursor' : 'claude';
+  if (CURSOR_TOOLS.has(tool)) return 'cursor';
+  return 'claude';
 }
 
 function extractTeamaiSubcommand(command: string): string | null {
@@ -313,6 +326,18 @@ async function injectClaudeHooks(settingsPath: string, tool: string): Promise<vo
   const settings: ClaudeSettingsJson = (await readJson<ClaudeSettingsJson>(expanded)) ?? {};
 
   let changed = cleanupLegacyHooks(settings);
+
+  // Clean up empty camelCase keys left from previous incorrect camelCase injection
+  if (settings.hooks) {
+    const camelCaseKeys = ['sessionStart', 'stop', 'postToolUse', 'beforeSubmitPrompt', 'userPromptSubmit'];
+    for (const key of camelCaseKeys) {
+      if (settings.hooks[key] && settings.hooks[key].length === 0) {
+        delete settings.hooks[key];
+        changed = true;
+      }
+    }
+  }
+
   for (const def of getClaudeHooks(tool)) {
     if (ensureClaudeHook(settings, def)) {
       changed = true;
@@ -431,6 +456,7 @@ export async function injectHooks(settingsPath: string, tool?: string): Promise<
   if (format === 'cursor') {
     await injectCursorHooks(settingsPath, toolName);
   } else {
+    // Both claude and codebuddy use PascalCase event keys in settings.json
     await injectClaudeHooks(settingsPath, toolName);
   }
 }
@@ -443,6 +469,7 @@ export async function removeHooks(settingsPath: string, tool?: string): Promise<
   if (format === 'cursor') {
     await removeCursorHooks(settingsPath);
   } else {
+    // Both claude and codebuddy use the same settings.json structure for removal
     await removeClaudeHooks(settingsPath);
   }
 }

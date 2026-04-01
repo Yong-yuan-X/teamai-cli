@@ -1226,6 +1226,7 @@ describe('hook command strings', () => {
     await fse.ensureDir(path.dirname(settingsPath));
 
     // Simulate: old description "Check for updates" + current "Auto-update" both present
+    // CodeBuddy uses PascalCase keys (same as Claude) — HookExecutor looks up by PascalCase
     const outdatedSettings = {
       hooks: {
         Stop: [
@@ -1248,7 +1249,8 @@ describe('hook command strings', () => {
 
     const result = JSON.parse(await fs.promises.readFile(settingsPath, 'utf-8'));
 
-    // Both old entries cleaned, replaced by fresh hooks (update + dashboard-report = 2)
+    // Legacy entries cleaned up, fresh hooks injected under PascalCase "Stop" key
+    // (update + dashboard-report = 2)
     expect(result.hooks.Stop).toHaveLength(2);
     const updateHook = result.hooks.Stop.find((h: { description?: string }) =>
       h.description?.includes('Auto-update'),
