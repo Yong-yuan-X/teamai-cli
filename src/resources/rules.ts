@@ -179,8 +179,12 @@ export class RulesHandler extends ResourceHandler {
    * Distribute rule files to each tool's rules/ directory, then update
    * CLAUDE.md with a lightweight reference list instead of inlining content.
    */
-  async pullAllRules(teamConfig: TeamaiConfig, localConfig: LocalConfig): Promise<void> {
-    const rules = await this.scanTeamForPull(teamConfig, localConfig);
+  async pullAllRules(
+    teamConfig: TeamaiConfig,
+    localConfig: LocalConfig,
+    filteredRules?: ResourceItem[],
+  ): Promise<void> {
+    const rules = filteredRules ?? await this.scanTeamForPull(teamConfig, localConfig);
     if (rules.length === 0) return;
 
     // 1. Distribute rule files to each tool's rules/ directory

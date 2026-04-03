@@ -3,9 +3,11 @@ import fse from 'fs-extra';
 import { requireInit, loadState, saveState, detectProjectConfig, loadLocalConfigForScope, loadTeamConfig, loadStateForScope, saveStateForScope } from './config.js';
 import { pullRepo } from './utils/git.js';
 import { log, spinner } from './utils/logger.js';
-import { pathExists, remove, listFiles } from './utils/fs.js';
+import { pathExists, remove, listFiles, listDirs } from './utils/fs.js';
 import { getHandler, RulesHandler, DocsHandler, EnvHandler } from './resources/index.js';
-import type { GlobalOptions, ResourceType, ResourceItem, TeamaiConfig, LocalConfig } from './types.js';
+import { loadTagsConfig, filterByTags } from './utils/tags.js';
+import { BUILTIN_SKILL_NAMES } from './builtin-skills.js';
+import type { GlobalOptions, ResourceType, ResourceItem, TeamaiConfig, LocalConfig, TagsConfig } from './types.js';
 import { LEARNINGS_LOCAL_DIR, resolveBaseDir, getTeamaiHome } from './types.js';
 
 /**
@@ -50,19 +52,24 @@ function logSyncDetail(
   existingNames: Set<string>,
   verbose: boolean,
   scopeLabel?: string,
+  skippedCount?: number,
 ): void {
   const prefix = scopeLabel ? `[${scopeLabel}] ` : '';
   const added = items.filter(i => !existingNames.has(i.name));
   const updated = items.filter(i => existingNames.has(i.name));
 
+  const skipSuffix = skippedCount && skippedCount > 0
+    ? `, skipped ${skippedCount} by tags`
+    : '';
+
   if (added.length === 0 && updated.length > 0) {
-    log.success(`${prefix}Synced ${items.length} ${type} (all updated)`);
+    log.success(`${prefix}Synced ${items.length} ${type} (all updated${skipSuffix})`);
   } else if (added.length > 0) {
-    log.success(`${prefix}Synced ${items.length} ${type} (${added.length} new, ${updated.length} updated)`);
+    log.success(`${prefix}Synced ${items.length} ${type} (${added.length} new, ${updated.length} updated${skipSuffix})`);
     const addedNames = added.map(i => i.name);
     log.dim(`    new: ${addedNames.join(', ')}`);
   } else {
-    log.success(`${prefix}Synced ${items.length} ${type}`);
+    log.success(`${prefix}Synced ${items.length} ${type}${skipSuffix ? ` (${skipSuffix.trim().replace(/^, /, '')})` : ''}`);
   }
 
   if (verbose && updated.length > 0) {
@@ -103,6 +110,10 @@ async function pullForScope(
     return;
   }
 
+  // Load tags config for filtering
+  const tagsConfig = await loadTagsConfig(localConfig.repo.localPath);
+  const subscribedTags = localConfig.subscribedTags;
+
   // Step 2: Sync each resource type
   const resourceTypes: ResourceType[] = ['skills', 'rules', 'docs', 'env'];
   let totalSynced = 0;
@@ -112,21 +123,35 @@ async function pullForScope(
 
     if (type === 'rules') {
       const rulesHandler = handler as RulesHandler;
-      const items = await rulesHandler.scanTeamForPull(freshConfig, localConfig);
+      const allItems = await rulesHandler.scanTeamForPull(freshConfig, localConfig);
+      const { included: items, skipped } = filterByTags(allItems, tagsConfig, subscribedTags, 'rules');
       if (items.length > 0) {
         if (options.dryRun) {
-          log.info(`[${scopeLabel}] [dry-run] Would sync ${items.length} rule(s)`);
+          log.info(`[${scopeLabel}] [dry-run] Would sync ${items.length} rule(s)${skipped.length > 0 ? ` (skipped ${skipped.length} by tags)` : ''}`);
         } else {
-          await rulesHandler.pullAllRules(freshConfig, localConfig);
-          log.success(`[${scopeLabel}] Synced ${items.length} rule(s)`);
+          await rulesHandler.pullAllRules(freshConfig, localConfig, items);
+          log.success(`[${scopeLabel}] Synced ${items.length} rule(s)${skipped.length > 0 ? ` (skipped ${skipped.length} by tags)` : ''}`);
         }
         totalSynced += items.length;
       }
       continue;
     }
 
-    const items = await handler.scanTeamForPull(freshConfig, localConfig);
-    if (items.length === 0) continue;
+    const allItems = await handler.scanTeamForPull(freshConfig, localConfig);
+    if (allItems.length === 0) continue;
+
+    // Apply tag filtering for skills (docs/env don't need filtering)
+    const isFilterable = type === 'skills';
+    const { included: items, skipped } = isFilterable
+      ? filterByTags(allItems, tagsConfig, subscribedTags, 'skills')
+      : { included: allItems, skipped: [] as ResourceItem[] };
+
+    if (items.length === 0) {
+      if (skipped.length > 0) {
+        log.success(`Synced 0 ${type} (skipped ${skipped.length} by tags)`);
+      }
+      continue;
+    }
 
     if (type === 'env') {
       const envHandler = handler as EnvHandler;
@@ -182,7 +207,7 @@ async function pullForScope(
       }
 
       if (type === 'skills') {
-        logSyncDetail(type, items, existingNames, !!options.verbose, scopeLabel);
+        logSyncDetail(type, items, existingNames, !!options.verbose, scopeLabel, skipped.length);
       } else {
         log.success(`[${scopeLabel}] Synced ${items.length} ${type}`);
       }
@@ -215,6 +240,31 @@ async function pullForScope(
             log.debug(`[${scopeLabel}] Cleaned up tombstoned ${type} ${name} from ${dir}`);
           }
         }
+      }
+    }
+  }
+
+  // Step 3b: Clean up local skills that are now filtered out by tags
+  if (!options.dryRun && tagsConfig && subscribedTags && subscribedTags.length > 0) {
+    const home = process.env.HOME ?? '';
+    // Get the full list of team skills and determine which are filtered out
+    const skillsHandler = getHandler('skills');
+    const allTeamSkills = await skillsHandler.scanTeamForPull(freshConfig, localConfig);
+    const { skipped: filteredOut } = filterByTags(allTeamSkills, tagsConfig, subscribedTags, 'skills');
+    const filteredNames = new Set(filteredOut.map((i) => i.name));
+
+    for (const [tool, toolPath] of Object.entries(freshConfig.toolPaths)) {
+      if (!toolPath.skills) continue;
+      const skillsDir = path.join(home, toolPath.skills);
+      if (!await pathExists(skillsDir)) continue;
+
+      const localDirs = await listDirs(skillsDir);
+      for (const dir of localDirs) {
+        if (!filteredNames.has(dir)) continue;
+        if (BUILTIN_SKILL_NAMES.has(dir)) continue;
+        const skillDir = path.join(skillsDir, dir);
+        await remove(skillDir);
+        log.debug(`Removed tag-filtered skill ${dir} from ${tool}`);
       }
     }
   }

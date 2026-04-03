@@ -76,6 +76,8 @@ export const LocalConfigSchema = z.object({
   scope: ScopeEnum.default('user'),
   /** Absolute path to project root; required when scope is 'project'. */
   projectRoot: z.string().optional(),
+  /** Tags the user has subscribed to. If empty/undefined, pull all resources. */
+  subscribedTags: z.array(z.string()).optional(),
 });
 
 export type LocalConfig = z.infer<typeof LocalConfigSchema>;
@@ -93,6 +95,26 @@ export const StateSchema = z.object({
 });
 
 export type State = z.infer<typeof StateSchema>;
+
+// ─── Tags config (team repo: tags.yaml) ─────────────────
+//
+//  Centralized tag-to-resource mapping managed by team admin.
+//  Users subscribe to tags in their local config; `teamai pull`
+//  filters resources by matching tags.
+//
+//  Backward compat rules:
+//    - No tags.yaml → pull everything
+//    - No subscribedTags → pull everything
+//    - Resource not in tags.yaml → always pulled (untagged = universal)
+//
+
+/** Parsed content of team-repo/tags.yaml. */
+export interface TagsConfig {
+  /** Skill name → list of tags. */
+  skills: Record<string, string[]>;
+  /** Rule name → list of tags. */
+  rules: Record<string, string[]>;
+}
 
 // ─── Resource types ─────────────────────────────────────
 

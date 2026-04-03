@@ -106,6 +106,73 @@ program
     await doctor(globalOpts);
   });
 
+// ─── Tags subcommand ──────────────────────────────────────
+
+const tagsCmd = program
+  .command('tags')
+  .description('Manage tag-based skill/rule filtering')
+  .action(async () => {
+    // Default action: list tags
+    const globalOpts = program.opts() as GlobalOptions;
+    const { tagsList } = await import('./tags.js');
+    await tagsList(globalOpts);
+  });
+
+tagsCmd
+  .command('list')
+  .description('List all available tags and subscription status')
+  .action(async () => {
+    const globalOpts = program.opts() as GlobalOptions;
+    const { tagsList } = await import('./tags.js');
+    await tagsList(globalOpts);
+  });
+
+tagsCmd
+  .command('subscribe <tags...>')
+  .description('Subscribe to tags (only matching skills/rules will be synced)')
+  .action(async (tags: string[]) => {
+    const globalOpts = program.opts() as GlobalOptions;
+    const { tagsSubscribe } = await import('./tags.js');
+    await tagsSubscribe(tags, globalOpts);
+  });
+
+tagsCmd
+  .command('unsubscribe <tags...>')
+  .description('Unsubscribe from tags')
+  .action(async (tags: string[]) => {
+    const globalOpts = program.opts() as GlobalOptions;
+    const { tagsUnsubscribe } = await import('./tags.js');
+    await tagsUnsubscribe(tags, globalOpts);
+  });
+
+tagsCmd
+  .command('add <type> <name> <tags...>')
+  .description('Add tags to a skill or rule in tags.yaml (admin)')
+  .action(async (type: string, name: string, tags: string[]) => {
+    const globalOpts = program.opts() as GlobalOptions;
+    if (type !== 'skills' && type !== 'rules') {
+      console.error('Type must be "skills" or "rules"');
+      process.exit(1);
+    }
+    const { tagsAdd } = await import('./tags.js');
+    await tagsAdd(type, name, tags, globalOpts);
+  });
+
+tagsCmd
+  .command('remove <type> <name> <tags...>')
+  .description('Remove tags from a skill or rule in tags.yaml (admin)')
+  .action(async (type: string, name: string, tags: string[]) => {
+    const globalOpts = program.opts() as GlobalOptions;
+    if (type !== 'skills' && type !== 'rules') {
+      console.error('Type must be "skills" or "rules"');
+      process.exit(1);
+    }
+    const { tagsRemove } = await import('./tags.js');
+    await tagsRemove(type, name, tags, globalOpts);
+  });
+
+// ─── Other subcommands ────────────────────────────────────
+
 program
   .command('update')
   .description('Check for updates and upgrade teamai CLI')

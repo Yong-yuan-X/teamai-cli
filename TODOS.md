@@ -61,3 +61,14 @@
 **Priority:** P1
 **Depends on:** Phase 1 (session contribute 功能) 完成。
 **Added:** 2026-03-27 by /plan-ceo-review
+
+## 自动检测项目类型推荐标签 (Tag Filtering V2)
+**What:** `teamai pull` 时扫描当前工作目录，根据 package.json → typescript、go.mod → golang、Cargo.toml → rust 等文件特征，自动建议订阅相关标签。
+**Why:** V1 tag filtering 需要用户手动运行 `teamai tags subscribe`，新用户不知道订阅什么标签。自动检测能减少 onboarding 摩擦，让标签系统开箱即用。
+**Pros:** 零配置体验。新用户 pull 时自动获得与项目相关的 skill 子集。
+**Cons:** 检测逻辑需要维护（新语言/框架需要新增规则）。可能误判（多语言项目）。
+**Context:** V1 tag filtering 在 v0.10.0 实现，基于 team-repo/tags.yaml 集中管理 + ~/.teamai/config.yaml subscribedTags。V2 只需在 pull 入口检测 cwd 文件特征，生成建议标签列表，首次提示用户确认。实现位置：pull.ts 或新建 auto-detect.ts。
+**Effort:** M (human: ~3d / CC: ~20min)
+**Priority:** P2
+**Depends on:** V1 tag filtering 完成（已完成）。
+**Added:** 2026-04-01 by /plan-eng-review

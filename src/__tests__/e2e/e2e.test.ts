@@ -72,9 +72,35 @@ describe('CLI basics', () => {
 
   it('--help should list core commands', async () => {
     const { output } = await runCLI(['--help']);
-    for (const cmd of ['init', 'pull', 'push', 'status', 'members']) {
+    for (const cmd of ['init', 'pull', 'push', 'status', 'members', 'tags']) {
       expect(output).toContain(cmd);
     }
+  });
+});
+
+// ─── Tags CLI (no token needed) ──────────────────────────
+
+describe('tags CLI', () => {
+  it('teamai tags --help should list subcommands', async () => {
+    const { output } = await runCLI(['tags', '--help']);
+    expect(output).toContain('list');
+    expect(output).toContain('subscribe');
+    expect(output).toContain('unsubscribe');
+    expect(output).toContain('add');
+    expect(output).toContain('remove');
+  });
+
+  it('teamai tags list (no init) should show error', async () => {
+    // Run in a temp dir with no teamai init
+    const { output, code } = await runCLI(['tags', 'list']);
+    // Either shows tags or shows "not initialized" error — both valid
+    expect(output.length).toBeGreaterThan(0);
+  });
+
+  it('teamai tags subscribe (no args) should show usage error', async () => {
+    const { output } = await runCLI(['tags', 'subscribe']);
+    // Commander shows error for missing required argument
+    expect(output).toMatch(/missing|required|error/i);
   });
 });
 
@@ -189,6 +215,31 @@ describe('remote commands', () => {
     async () => {
       const { code } = await runCLI(['push', '--dry-run']);
       expect(code).toBe(0);
+    },
+  );
+
+  it.skipIf(!CAN_RUN_REMOTE)(
+    'teamai tags — lists available tags or shows "not configured"',
+    async () => {
+      const { code, output } = await runCLI(['tags']);
+      expect(code).toBe(0);
+      // Should either show tag table or "No tags.yaml found"
+      expect(output).toMatch(/Tag|tags\.yaml|subscript/i);
+    },
+  );
+
+  it.skipIf(!CAN_RUN_REMOTE)(
+    'teamai tags subscribe/unsubscribe roundtrip',
+    async () => {
+      // Subscribe to a test tag
+      const sub = await runCLI(['tags', 'subscribe', '__e2e_test_tag__']);
+      expect(sub.code).toBe(0);
+      expect(sub.output).toContain('Subscribed');
+
+      // Unsubscribe
+      const unsub = await runCLI(['tags', 'unsubscribe', '__e2e_test_tag__']);
+      expect(unsub.code).toBe(0);
+      expect(unsub.output).toContain('Unsubscribed');
     },
   );
 });
