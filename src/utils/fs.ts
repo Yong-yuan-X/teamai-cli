@@ -73,10 +73,21 @@ export async function writeJson(filePath: string, data: unknown): Promise<void> 
 }
 
 /**
- * Copy a directory recursively
+ * Copy a directory recursively.
+ * If `dest` is a symlink (e.g. left over from setup-links.sh), remove it first
+ * so fse.copy can create a real directory in its place.
  */
 export async function copyDir(src: string, dest: string): Promise<void> {
-  await fse.copy(expandHome(src), expandHome(dest), {
+  const destExpanded = expandHome(dest);
+  try {
+    const stat = await fse.lstat(destExpanded);
+    if (stat.isSymbolicLink()) {
+      await fse.remove(destExpanded);
+    }
+  } catch {
+    // dest doesn't exist yet — that's fine
+  }
+  await fse.copy(expandHome(src), destExpanded, {
     overwrite: true,
     filter: (srcPath: string) => !isIgnored(path.basename(srcPath)),
   });

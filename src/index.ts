@@ -89,12 +89,12 @@ membersCmd
   });
 
 program
-  .command('remove <type> <name>')
-  .description('Remove a resource from team repo and all local AI tools (type: skills|rules)')
-  .action(async (type, name) => {
+  .command('remove <type> <names...>')
+  .description('Remove resource(s) from team repo and all local AI tools (type: skills|rules)')
+  .action(async (type, names) => {
     const globalOpts = program.opts() as GlobalOptions;
     const { remove } = await import('./remove.js');
-    await remove(type, name, globalOpts);
+    await remove(type, names, globalOpts);
   });
 
 program

@@ -20,11 +20,16 @@ const REMOVABLE_TYPES: ResourceType[] = ['skills', 'rules'];
 
 export async function remove(
   type: string,
-  name: string,
+  names: string[],
   options: GlobalOptions,
 ): Promise<void> {
   if (!REMOVABLE_TYPES.includes(type as ResourceType)) {
     log.error(`Unsupported resource type: ${type}. Supported types: ${REMOVABLE_TYPES.join(', ')}`);
+    return;
+  }
+
+  if (names.length === 0) {
+    log.error('No resource names provided');
     return;
   }
 
@@ -38,15 +43,29 @@ export async function remove(
 
   const handler = getHandler(type as ResourceType);
 
-  // Verify the resource exists somewhere
+  // Verify which resources exist
   const teamItems = await handler.scanTeamForPull(teamConfig, localConfig);
   const localItems = await handler.scanLocalForPush(teamConfig, localConfig);
   const allNames = new Set([...teamItems.map((i) => i.name), ...localItems.map((i) => i.name)]);
 
-  if (!allNames.has(name)) {
-    log.error(`Resource not found: [${type}] ${name}`);
+  const found: string[] = [];
+  const notFound: string[] = [];
+  for (const name of names) {
+    if (allNames.has(name)) {
+      found.push(name);
+    } else {
+      notFound.push(name);
+    }
+  }
+
+  if (notFound.length > 0) {
+    log.warn(`Not found (skipping): ${notFound.join(', ')}`);
+  }
+
+  if (found.length === 0) {
+    log.error('No matching resources found to remove');
     log.info(`Available ${type}:`);
-    for (const n of allNames) {
+    for (const n of [...allNames].sort()) {
       console.log(`  - ${n}`);
     }
     return;
@@ -54,9 +73,12 @@ export async function remove(
 
   // Show what will be removed
   console.log('');
-  console.log(`Will remove [${type}] ${name} from:`);
-  console.log('  - team repo');
-  console.log('  - all local AI tool directories');
+  console.log(`Will remove ${found.length} ${type}:`);
+  for (const name of found) {
+    console.log(`  - ${name}`);
+  }
+  console.log('');
+  console.log('From: team repo + all local AI tool directories');
   console.log('');
 
   if (options.dryRun) {
@@ -70,19 +92,27 @@ export async function remove(
     return;
   }
 
-  const spin = spinner(`Removing ${type} "${name}"...`).start();
+  const spin = spinner(`Removing ${found.length} ${type}...`).start();
 
-  const removedPaths = await handler.removeItem(name, teamConfig, localConfig);
+  // Remove all resources
+  let totalRemoved = 0;
+  for (const name of found) {
+    const removedPaths = await handler.removeItem(name, teamConfig, localConfig);
+    totalRemoved += removedPaths.length;
+  }
 
-  if (removedPaths.length === 0) {
+  if (totalRemoved === 0) {
     spin.fail('Nothing was removed');
     return;
   }
 
-  // Git commit and push via branch + MR
+  // Git commit and push via a single branch + MR
   try {
     const branchName = generateBranchName(localConfig.username);
-    const commitMsg = `[teamai] Remove ${type.replace(/s$/, '')} "${name}" by ${localConfig.username}`;
+    const nameList = found.length <= 3
+      ? found.map((n) => `"${n}"`).join(', ')
+      : `${found.slice(0, 3).map((n) => `"${n}"`).join(', ')} and ${found.length - 3} more`;
+    const commitMsg = `[teamai] Remove ${found.length} ${type}: ${nameList} by ${localConfig.username}`;
 
     const hasChanges = await pushRepoBranch(
       localConfig.repo.localPath,
@@ -94,7 +124,7 @@ export async function remove(
     if (!hasChanges) {
       spin.succeed('No changes to push');
     } else {
-      spin.succeed(`Removed [${type}] ${name} from ${removedPaths.length} location(s)`);
+      spin.succeed(`Removed ${found.length} ${type} from ${totalRemoved} location(s)`);
 
       // Create PR/MR via provider (shared helper — DRY)
       await createPrWithFallback(
@@ -102,7 +132,7 @@ export async function remove(
         localConfig,
         branchName,
         commitMsg,
-        `Remove [${type}] ${name}`,
+        `Remove ${found.length} ${type}: ${nameList}`,
       );
 
       // Switch back to master after PR creation
@@ -116,10 +146,10 @@ export async function remove(
   // Clean up state tracking
   const state = await loadStateForScope(localConfig.scope, localConfig.projectRoot);
   if (type === 'skills') {
-    state.pushedSkills = state.pushedSkills.filter((s) => s !== name);
+    state.pushedSkills = state.pushedSkills.filter((s) => !found.includes(s));
   }
   if (type === 'rules') {
-    state.pushedRules = state.pushedRules.filter((r) => r !== name);
+    state.pushedRules = state.pushedRules.filter((r) => !found.includes(r));
   }
   await saveStateForScope(state, localConfig.scope, localConfig.projectRoot);
 }
