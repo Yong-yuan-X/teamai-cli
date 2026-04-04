@@ -70,9 +70,9 @@ interface ClaudeSettingsJson {
 //  SessionStart        *         teamai dashboard-report --stdin        "Dashboard report"
 //  Stop                *         teamai update                          "Auto-update"
 //  Stop                *         teamai dashboard-report --stdin        "Dashboard stop"
+//  Stop                *         teamai contribute-check --stdin        "Contribute check"
 //  PostToolUse         Skill     teamai track --stdin                   "Track skill"
 //  PostToolUse         *         teamai dashboard-report --stdin        "Dashboard tool"
-//  PostToolUse         *         teamai contribute-check --stdin        "Contribute check"
 //  PostToolUse         *         teamai auto-recall --stdin             "Auto-recall"
 //  UserPromptSubmit    *         teamai track-slash                     "Track slash"
 //  UserPromptSubmit    *         teamai dashboard-report --stdin        "Dashboard prompt"
@@ -106,6 +106,16 @@ function getClaudeHooks(tool: string): ClaudeHookDef[] {
         description: `${TEAMAI_HOOK_DESCRIPTION_PREFIX} Auto-update on session end`,
       },
     },
+    // ─── Contribute check (smart threshold hint at session end) ────────
+    {
+      eventType: 'Stop',
+      descriptionKeyword: 'Contribute check',
+      hook: {
+        matcher: '*',
+        hooks: [{ type: 'command', command: getContributeCheckCommand(tool) }],
+        description: `${TEAMAI_HOOK_DESCRIPTION_PREFIX} Contribute check on session end`,
+      },
+    },
     {
       eventType: 'PostToolUse',
       descriptionKeyword: 'Track skill',
@@ -122,16 +132,6 @@ function getClaudeHooks(tool: string): ClaudeHookDef[] {
         matcher: '*',
         hooks: [{ type: 'command', command: getTrackSlashCommand(tool) }],
         description: `${TEAMAI_HOOK_DESCRIPTION_PREFIX} Track slash command usage`,
-      },
-    },
-    // ─── Contribute check (smart threshold hint) ────────
-    {
-      eventType: 'PostToolUse',
-      descriptionKeyword: 'Contribute check',
-      hook: {
-        matcher: '*',
-        hooks: [{ type: 'command', command: getContributeCheckCommand(tool) }],
-        description: `${TEAMAI_HOOK_DESCRIPTION_PREFIX} Contribute check on tool use`,
       },
     },
     // ─── Auto-recall (search knowledge base on search tools + Bash errors) ────────
@@ -207,11 +207,11 @@ function buildCursorHooks(tool: string): Record<string, CursorHookEntry[]> {
     stop: [
       { command: TEAMAI_UPDATE_COMMAND, timeout: 90 },
       { command: getDashboardReportCommand(tool), timeout: 10 },
+      { command: getContributeCheckCommand(tool), timeout: 10 },
     ],
     postToolUse: [
       { command: getTrackCommand(tool), timeout: 10, matcher: 'Skill' },
       { command: getDashboardReportCommand(tool), timeout: 10 },
-      { command: getContributeCheckCommand(tool), timeout: 10 },
       { command: getAutoRecallCommand(tool), timeout: 3 },
     ],
     beforeSubmitPrompt: [

@@ -48,8 +48,8 @@ describe('hooks E2E — real file I/O', () => {
 
       expect(Object.keys(hooks)).toEqual(['SessionStart', 'Stop', 'PostToolUse', 'UserPromptSubmit']);
       expect(hooks.SessionStart).toHaveLength(2);
-      expect(hooks.Stop).toHaveLength(2);
-      expect(hooks.PostToolUse).toHaveLength(4);
+      expect(hooks.Stop).toHaveLength(3);
+      expect(hooks.PostToolUse).toHaveLength(3);
       expect(hooks.UserPromptSubmit).toHaveLength(2);
     });
 
@@ -63,8 +63,8 @@ describe('hooks E2E — real file I/O', () => {
 
       expect(Object.keys(hooks)).toEqual(['sessionStart', 'stop', 'postToolUse', 'beforeSubmitPrompt']);
       expect(hooks.sessionStart).toHaveLength(2);
-      expect(hooks.stop).toHaveLength(2);
-      expect(hooks.postToolUse).toHaveLength(4);
+      expect(hooks.stop).toHaveLength(3);
+      expect(hooks.postToolUse).toHaveLength(3);
       expect(hooks.beforeSubmitPrompt).toHaveLength(2);
     });
 

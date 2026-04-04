@@ -5,13 +5,12 @@ import { readJson, writeJson, ensureDir } from './utils/fs.js';
 import { readEvents } from './dashboard-collector.js';
 import type { ContributeState, DashboardEvent } from './types.js';
 import {
-  CONTRIBUTE_BASE_THRESHOLD,
   CONTRIBUTE_SMART_THRESHOLD,
 } from './types.js';
 
-// ─── Contribute check data flow ──────────────────────────
+// ─── Contribute check data flow (Stop hook) ────────────────
 //
-//  PostToolUse hook (every tool call)
+//  Stop hook (session end)
 //      │
 //      ▼
 //  teamai contribute-check --stdin --tool <name>
@@ -19,17 +18,11 @@ import {
 //      ├─ readState(sessionId)
 //      │   └─ missing/corrupted → default state
 //      │
-//      ├─ if hinted or contributed → exit(0), no output
+//      ├─ if contributed → exit(0), no output
 //      │
-//      ├─ increment toolCount
+//      ├─ readEvents + computeSmartScore()
 //      │
-//      ├─ if toolCount < BASE_THRESHOLD (100) → write state, exit(0)
-//      │
-//      ├─ evaluateSmartScore(sessionId)    ← lazy: only at threshold
-//      │   ├─ read events.jsonl
-//      │   ├─ filter by sessionId
-//      │   ├─ uniqueTools, hasSkills, hasErrors → score
-//      │   └─ score < SMART_THRESHOLD (60) → write state (hinted=true to avoid re-eval), exit(0)
+//      ├─ score < SMART_THRESHOLD (35) → write state, exit(0)
 //      │
 //      └─ STDOUT hint → AI reads, suggests /contribute
 //
@@ -42,8 +35,6 @@ function getSessionPath(sessionId: string): string {
 /** Default empty state for a new session. */
 function defaultState(): ContributeState {
   return {
-    toolCount: 0,
-    evaluated: false,
     contributed: false,
   };
 }
@@ -53,15 +44,7 @@ export async function readContributeState(sessionId: string): Promise<Contribute
   try {
     const raw = await readJson<Record<string, unknown>>(getSessionPath(sessionId));
     if (raw) {
-      // Backward compat: migrate legacy "hinted" field to "evaluated"
-      const evaluated = typeof raw.evaluated === 'boolean'
-        ? raw.evaluated
-        : typeof raw.hinted === 'boolean'
-          ? raw.hinted
-          : false;
       return {
-        toolCount: typeof raw.toolCount === 'number' ? raw.toolCount : 0,
-        evaluated,
         smartScore: typeof raw.smartScore === 'number' ? raw.smartScore : undefined,
         contributed: typeof raw.contributed === 'boolean' ? raw.contributed : false,
       };
@@ -214,10 +197,10 @@ async function readStdinAndDeriveSession(): Promise<{ sessionId: string } | null
 
 /**
  * Handle `teamai contribute-check --stdin --tool <name>`.
- * Called by PostToolUse hook on every tool call.
+ * Called by Stop hook at session end.
  *
- * Performance: reads a small state JSON (~1ms) on every call.
- * Only reads events.jsonl once when base threshold is reached.
+ * Reads session events, computes a smart score, and outputs a STDOUT
+ * hint when the session appears valuable enough to document.
  *
  * Output: STDOUT hint when smart threshold is exceeded (once per session).
  * Claude Code reads hook STDOUT and passes it to AI as context,
@@ -233,35 +216,20 @@ export async function contributeCheck(toolArg?: string): Promise<void> {
   const { sessionId } = stdinData;
   const state = await readContributeState(sessionId);
 
-  // Already evaluated or contributed — no need to check again
-  if (state.evaluated || state.contributed) {
+  // Already contributed — no need to suggest again
+  if (state.contributed) {
     return;
   }
 
-  // Increment tool count
-  const updatedState: ContributeState = {
-    ...state,
-    toolCount: state.toolCount + 1,
-  };
-
-  // Layer 1: below base threshold — just save count and exit
-  if (updatedState.toolCount < CONTRIBUTE_BASE_THRESHOLD) {
-    await writeContributeState(sessionId, updatedState);
-    return;
-  }
-
-  // Layer 2: smart threshold evaluation (runs once at base threshold)
-  log.debug(`contribute-check: session ${sessionId.slice(0, 16)} reached ${updatedState.toolCount} calls, evaluating...`);
-
+  // Compute smart score from session events
   const allEvents = await readEvents();
   const sessionEvents = allEvents.filter((e) => e.sessionId === sessionId);
   const score = computeSmartScore(sessionEvents);
 
-  log.debug(`contribute-check: smart score = ${score} (threshold: ${CONTRIBUTE_SMART_THRESHOLD})`);
+  log.debug(`contribute-check: session ${sessionId.slice(0, 16)} smart score = ${score} (threshold: ${CONTRIBUTE_SMART_THRESHOLD})`);
 
-  // Mark as evaluated regardless of score — avoid re-evaluating every subsequent call
-  updatedState.evaluated = true;
-  updatedState.smartScore = score;
+  // Persist score for diagnostics
+  const updatedState: ContributeState = { ...state, smartScore: score };
   await writeContributeState(sessionId, updatedState);
 
   if (score < CONTRIBUTE_SMART_THRESHOLD) {
@@ -270,18 +238,18 @@ export async function contributeCheck(toolArg?: string): Promise<void> {
   }
 
   // Output STDOUT hint — Claude Code passes this to the AI
-  const toolCount = updatedState.toolCount;
+  const totalToolCalls = sessionEvents.filter((e) => e.type === 'tool_use').length;
   const uniqueTools = new Set(sessionEvents.filter((e) => e.toolName).map((e) => e.toolName)).size;
   const hint = [
-    `[teamai] 本次 session 内容丰富（${toolCount} 次工具调用，${uniqueTools} 种不同工具）。`,
+    `[teamai] 本次 session 内容丰富（${totalToolCalls} 次工具调用，${uniqueTools} 种不同工具）。`,
     `建议运行 /teamai-share-learnings 总结本次 session 的经验并分享给团队。`,
     `总结文档将保存到团队仓库的 learnings/ 目录。`,
   ].join('');
 
-  // Output via PostToolUse additionalContext JSON so Claude sees it
+  // Output via Stop hook additionalContext JSON so Claude sees it
   const hookOutput = JSON.stringify({
     hookSpecificOutput: {
-      hookEventName: 'PostToolUse',
+      hookEventName: 'Stop',
       additionalContext: hint,
     },
   });

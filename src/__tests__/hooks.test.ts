@@ -71,11 +71,12 @@ describe('hooks', () => {
       const events = Object.keys(result.hooks);
       expect(events).toEqual(['SessionStart', 'Stop', 'PostToolUse', 'UserPromptSubmit']);
 
-      // PostToolUse has 4 hooks (track-skill, dashboard-tool, contribute-check, auto-recall)
+      // Stop has 3 hooks (update, dashboard-stop, contribute-check)
+      // PostToolUse has 3 hooks (track-skill, dashboard-tool, auto-recall)
       // Others have 2 each
       expect(result.hooks['SessionStart']).toHaveLength(2);
-      expect(result.hooks['Stop']).toHaveLength(2);
-      expect(result.hooks['PostToolUse']).toHaveLength(4);
+      expect(result.hooks['Stop']).toHaveLength(3);
+      expect(result.hooks['PostToolUse']).toHaveLength(3);
       expect(result.hooks['UserPromptSubmit']).toHaveLength(2);
     });
 
@@ -89,10 +90,11 @@ describe('hooks', () => {
       const events = Object.keys(result.hooks);
       expect(events).toEqual(['sessionStart', 'stop', 'postToolUse', 'beforeSubmitPrompt']);
 
-      // postToolUse has 4 hooks (track, dashboard, contribute-check, auto-recall), others have 2
+      // stop has 3 hooks (update, dashboard-stop, contribute-check)
+      // postToolUse has 3 hooks (track, dashboard, auto-recall)
       expect(result.hooks['sessionStart']).toHaveLength(2);
-      expect(result.hooks['stop']).toHaveLength(2);
-      expect(result.hooks['postToolUse']).toHaveLength(4);
+      expect(result.hooks['stop']).toHaveLength(3);
+      expect(result.hooks['postToolUse']).toHaveLength(3);
       expect(result.hooks['beforeSubmitPrompt']).toHaveLength(2);
     });
 
@@ -119,10 +121,9 @@ describe('hooks', () => {
       await injectHooks('/test/settings.json', 'claude');
 
       const result = mockFiles['/test/settings.json'] as { hooks: Record<string, unknown[]> };
-      // PostToolUse has 4 hooks, others have 2
       expect(result.hooks['SessionStart']).toHaveLength(2);
-      expect(result.hooks['Stop']).toHaveLength(2);
-      expect(result.hooks['PostToolUse']).toHaveLength(4);
+      expect(result.hooks['Stop']).toHaveLength(3);
+      expect(result.hooks['PostToolUse']).toHaveLength(3);
       expect(result.hooks['UserPromptSubmit']).toHaveLength(2);
     });
 
@@ -131,10 +132,9 @@ describe('hooks', () => {
       await injectHooks('/test/hooks.json', 'cursor');
 
       const result = mockFiles['/test/hooks.json'] as { hooks: Record<string, unknown[]> };
-      // postToolUse has 4 hooks, others have 2
       expect(result.hooks['sessionStart']).toHaveLength(2);
-      expect(result.hooks['stop']).toHaveLength(2);
-      expect(result.hooks['postToolUse']).toHaveLength(4);
+      expect(result.hooks['stop']).toHaveLength(3);
+      expect(result.hooks['postToolUse']).toHaveLength(3);
       expect(result.hooks['beforeSubmitPrompt']).toHaveLength(2);
     });
 
@@ -321,12 +321,10 @@ describe('hooks', () => {
       const claudeSubcmds = extractTeamaiSubcommands(claudeResult.hooks);
       const cursorSubcmds = extractTeamaiSubcommands(cursorResult.hooks);
 
-      // Claude has contribute-check (STDOUT hint) which Cursor doesn't support
+      // Both Claude and Cursor should have the same subcommands
       expect(claudeSubcmds).toEqual([...TEAMAI_HOOK_SUBCOMMANDS].sort());
-      // Cursor is a subset of Claude (without Claude-only hooks like contribute-check)
-      for (const cmd of cursorSubcmds) {
-        expect(claudeSubcmds).toContain(cmd);
-      }
+      // Cursor should also have all subcommands (contribute-check moved to Stop, supported by both)
+      expect(cursorSubcmds).toEqual([...TEAMAI_HOOK_SUBCOMMANDS].sort());
     });
 
     it('Claude PascalCase events map 1:1 to Cursor camelCase events', async () => {
@@ -348,7 +346,7 @@ describe('hooks', () => {
       }
     });
 
-    it('Cursor hooks are a subset of Claude hooks per event (Claude may have extra hooks)', async () => {
+    it('Claude and Cursor have the same number of hooks per event', async () => {
       await injectHooks('/test/claude.json', 'claude');
       await injectHooks('/test/cursor.json', 'cursor');
 
@@ -356,8 +354,8 @@ describe('hooks', () => {
       const cursorResult = mockFiles['/test/cursor.json'] as { hooks: Record<string, unknown[]> };
 
       for (const [claudeEvent, cursorEvent] of Object.entries(CLAUDE_TO_CURSOR_EVENTS)) {
-        // Cursor has <= Claude hooks per event (Claude may have extra like contribute-check)
-        expect(cursorResult.hooks[cursorEvent].length).toBeLessThanOrEqual(
+        // Cursor has same hooks per event as Claude (contribute-check now in Stop for both)
+        expect(cursorResult.hooks[cursorEvent].length).toEqual(
           claudeResult.hooks[claudeEvent].length
         );
       }

@@ -288,18 +288,11 @@ export const DASHBOARD_COMPACTION_THRESHOLD = 10_000;
 
 /** Per-session contribute state, persisted to ~/.teamai/sessions/{sessionId}.json */
 export interface ContributeState {
-  /** Total tool calls counted so far */
-  toolCount: number;
-  /** Whether the smart score has been evaluated (prevents re-evaluation) */
-  evaluated: boolean;
   /** Smart score computed at evaluation time (undefined before evaluation) */
   smartScore?: number;
   /** Whether the user has already contributed this session */
   contributed: boolean;
 }
-
-/** Base threshold: minimum tool calls before smart evaluation triggers */
-export const CONTRIBUTE_BASE_THRESHOLD = 50;
 
 /** Smart score threshold: minimum score to show contribute hint */
 export const CONTRIBUTE_SMART_THRESHOLD = 35;
