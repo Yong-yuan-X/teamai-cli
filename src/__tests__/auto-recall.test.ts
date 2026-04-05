@@ -108,6 +108,13 @@ const error_code = getErrorCode();`;
         expect(containsError(output)).toBe(false);
     });
 
+    it('detects real errors even inside auto-recall output', () => {
+        // containsError itself does NOT filter [teamai:] — that's autoRecall()'s job.
+        // This verifies containsError still detects errors in such output.
+        const output = '[teamai:auto-recall] 检测到错误\nError: pod OOMKilled';
+        expect(containsError(output)).toBe(true);
+    });
+
     it('ignores "Error Handling" as a topic heading in file content', () => {
         // When "Error Handling" is the only error-like pattern,
         // the false positive pattern should suppress it.

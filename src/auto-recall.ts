@@ -478,6 +478,11 @@ export async function autoRecall(): Promise<void> {
         if (isReadOnlyCommand(command)) {
             return;
         }
+        // Skip our own output — prevents recursive false positives when
+        // Bash output contains auto-recall / recall results markers
+        if (toolOutput.includes('[teamai:')) {
+            return;
+        }
         // Bash: only recall on errors
         if (!containsError(toolOutput)) {
             return;
