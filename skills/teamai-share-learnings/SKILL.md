@@ -1,8 +1,7 @@
 # Contribute — 分享 Session 经验到团队知识库
 
-> **⚠️ DEPRECATED** — 请改用 `/wiki ingest --from-session`。
-> `/wiki` 是本 skill 的严格超集：结构化多页面、增量更新、可查询、`[[wiki links]]` 互相引用。
-> 本 skill 将在未来版本中移除。
+> **💡 建议** — 对于更丰富的知识管理，推荐使用 `/wiki ingest --from-session`。
+> `/wiki` 提供结构化多页面、增量更新、可查询、`[[wiki links]]` 互相引用等高级功能。
 
 总结本次 AI 编码 session 中学到的经验，推送到团队知识库。
 
