@@ -145,6 +145,20 @@ export async function push(options: GlobalOptions & { all?: boolean; role?: stri
     pushedFiles.push(item.relativePath);
   }
 
+  // Refresh marketplace.json if it exists and skills were pushed
+  if (allItems.some((i) => i.type === 'skills')) {
+    try {
+      const { refreshMarketplace } = await import('./resources/marketplace.js');
+      const updated = await refreshMarketplace(localConfig.repo.localPath);
+      if (updated) {
+        pushedFiles.push('.codebuddy-plugin/marketplace.json');
+        log.debug('Refreshed marketplace.json');
+      }
+    } catch (e) {
+      log.debug(`Marketplace refresh skipped: ${(e as Error).message}`);
+    }
+  }
+
   // Create branch, commit, and push
   try {
     const gitFiles = [...new Set([

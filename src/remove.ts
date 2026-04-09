@@ -101,6 +101,19 @@ export async function remove(
     totalRemoved += removedPaths.length;
   }
 
+  // Refresh marketplace.json if skills were removed
+  if (type === 'skills') {
+    try {
+      const { refreshMarketplace } = await import('./resources/marketplace.js');
+      const updated = await refreshMarketplace(localConfig.repo.localPath);
+      if (updated) {
+        log.debug('Refreshed marketplace.json after skill removal');
+      }
+    } catch (e) {
+      log.debug(`Marketplace refresh skipped: ${(e as Error).message}`);
+    }
+  }
+
   if (totalRemoved === 0) {
     spin.fail('Nothing was removed');
     return;
@@ -117,7 +130,7 @@ export async function remove(
     const hasChanges = await pushRepoBranch(
       localConfig.repo.localPath,
       commitMsg,
-      [`${type}/`, 'rules/'],
+      [`${type}/`, 'rules/', '.codebuddy-plugin/'],
       branchName,
     );
 
