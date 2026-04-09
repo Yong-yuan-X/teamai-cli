@@ -420,6 +420,22 @@ async function injectCursorHooks(hooksPath: string, tool: string): Promise<void>
   const desiredHooks = buildCursorHooks(tool);
   let changed = false;
 
+  // Clean up stale event keys no longer in the desired set (e.g. userPromptSubmit → beforeSubmitPrompt rename)
+  const desiredEvents = new Set(Object.keys(desiredHooks));
+  for (const event of Object.keys(hooksJson.hooks)) {
+    if (desiredEvents.has(event)) continue;
+    const entries = hooksJson.hooks[event];
+    const filtered = entries.filter((h) => !isTeamaiHookCommand(h.command));
+    if (filtered.length !== entries.length) {
+      changed = true;
+      if (filtered.length === 0) {
+        delete hooksJson.hooks[event];
+      } else {
+        hooksJson.hooks[event] = filtered;
+      }
+    }
+  }
+
   for (const [event, newEntries] of Object.entries(desiredHooks)) {
     if (!hooksJson.hooks[event]) {
       hooksJson.hooks[event] = [];

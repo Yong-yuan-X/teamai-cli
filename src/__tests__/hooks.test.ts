@@ -257,6 +257,44 @@ describe('hooks', () => {
     });
   });
 
+  describe('inject — stale event key cleanup', () => {
+    it('Cursor inject removes stale teamai event keys (e.g. userPromptSubmit)', async () => {
+      mockFiles['/test/hooks.json'] = {
+        version: 1,
+        hooks: {
+          userPromptSubmit: [
+            { command: 'bash -lc "teamai track-slash --stdin --tool cursor 2>/dev/null" || true', timeout: 10 },
+            { command: 'bash -lc "teamai dashboard-report --stdin --tool cursor 2>/dev/null" || true', timeout: 10 },
+          ],
+        },
+      };
+
+      await injectHooks('/test/hooks.json', 'cursor');
+
+      const result = mockFiles['/test/hooks.json'] as { hooks: Record<string, unknown[]> };
+      expect(result.hooks['userPromptSubmit']).toBeUndefined();
+      expect(result.hooks['beforeSubmitPrompt']).toHaveLength(2);
+    });
+
+    it('Cursor inject preserves user hooks in stale event keys', async () => {
+      mockFiles['/test/hooks.json'] = {
+        version: 1,
+        hooks: {
+          userPromptSubmit: [
+            { command: 'bash -lc "teamai track-slash --stdin --tool cursor 2>/dev/null" || true', timeout: 10 },
+            { command: 'echo "user custom hook"', timeout: 5 },
+          ],
+        },
+      };
+
+      await injectHooks('/test/hooks.json', 'cursor');
+
+      const result = mockFiles['/test/hooks.json'] as { hooks: Record<string, unknown[]> };
+      expect(result.hooks['userPromptSubmit']).toHaveLength(1);
+      expect((result.hooks['userPromptSubmit'][0] as { command: string }).command).toBe('echo "user custom hook"');
+    });
+  });
+
   describe('inject — tool parameterization', () => {
     it('Claude hooks contain --tool parameter matching the tool name', async () => {
       await injectHooks('/test/settings.json', 'claude');
