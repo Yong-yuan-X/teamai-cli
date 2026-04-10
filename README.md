@@ -39,6 +39,7 @@ teamai init --repo yourteam/yourproject --scope project
 | `teamai list [type]` | 列出资源（skills\|rules\|docs） |
 | `teamai members` | 列出已注册的团队成员 |
 | `teamai remove <type> <name>` | 从团队仓库和本地删除资源并创建 MR（skills\|rules） |
+| `teamai roles` | 管理团队角色（`init`/`list`/`set`/`add`/`remove`/`update`） |
 | `teamai contribute --file <path> [--scope <user\|project>]` | 将 AI 生成的经验文档推送到团队仓库 |
 | `teamai recall <query>` | 搜索团队知识库，自动合并 user + project 双 scope 结果 |
 | `teamai digest` | 生成团队 AI 使用周报（skill 排行、新增/更新 skill、session 摘要） |

@@ -209,6 +209,48 @@ teamai push --role pm  # 将本次 project skill 推送到 skills/pm/<skill-name
 teamai status        # 当前 scope、同步时间、资源统计
 ```
 
+### 角色管理
+
+角色（Roles）控制每个成员看到哪些 skills。管理员通过 `manifest/roles.yaml` 定义角色，成员选择自己的角色后，pull 只同步对应 namespace 的 skills。
+
+**管理员操作：**
+
+```bash
+# 初始化（交互式创建 manifest）
+teamai roles init
+
+# 添加角色
+teamai roles add devops --namespaces common,infra -d "基础设施团队"
+
+# 修改角色（增删 namespace、改描述）
+teamai roles update hai --add-namespaces infra
+teamai roles update hai --remove-namespaces legacy -d "新描述"
+
+# 删除角色
+teamai roles remove devops
+
+# 预览变更
+teamai roles add test --namespaces common,test --dry-run
+```
+
+以上命令会自动 push 分支并创建 MR，合并后对全团队生效。
+
+**成员操作：**
+
+```bash
+# 查看可选角色
+teamai roles list
+
+# 选择自己的角色
+teamai roles set hai
+teamai roles set hai --add pm    # 主角色 hai + 额外角色 pm
+
+# 同步新角色的资源
+teamai pull
+```
+
+> **安全降级：** 如果管理员删除了某个角色，仍然配置了该角色的成员在 pull 时不会报错，而是回退到全量同步并输出警告，提示重新选择角色。
+
 ---
 
 ## 共享团队资源

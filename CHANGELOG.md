@@ -8,6 +8,25 @@ All notable changes to this project will be documented in this file. See [standa
 
 - 修复 Cursor hooks.json 中残留已废弃的 `userPromptSubmit` 事件 key 导致 "Invalid hooks.json" 报错的问题 (!122)
 
+## [0.13.3](https://git.woa.com/teamai/teamai-cli/compare/v0.13.2...v0.13.3) (2026-04-10)
+
+### ✨ 新功能
+
+- **Roles CRUD 命令**：新增 `teamai roles add/remove/update`，管理员无需手动编辑 YAML 即可管理团队角色 (!125)
+  - `teamai roles add <id> --namespaces <ns> [-d <desc>]` — 添加角色
+  - `teamai roles remove <id>` — 删除角色
+  - `teamai roles update <id> --add-namespaces/--remove-namespaces` — 修改角色
+
+### 🐛 修复
+
+- **Pull 安全降级**：成员配置的角色被删除后，pull 不再崩溃，改为 warn + 回退全量同步 (!125)
+- **Push namespace 解析**：从 manifest 读取实际 namespace 列表，不再错误地将 role id 当作 namespace (!125)
+
+### 🔧 重构
+
+- 抽出 `pushManifestChange()` 和 `pullLatest()` 共用函数，消除 `rolesInit` 中的重复代码 (!125)
+- 新增 `saveRolesManifest()` 含写前校验，防止写入非法 manifest (!125)
+
 ---
 
 ## [0.13.1](https://git.woa.com/teamai/teamai-cli/compare/v0.11.2...v0.13.1) (2026-04-09)
