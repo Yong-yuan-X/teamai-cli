@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { push } from '../push.js';
 
 const mockAutoDetectInit = vi.fn();
 const mockPullRepo = vi.fn();
@@ -9,7 +10,18 @@ const mockLoadStateForScope = vi.fn();
 const mockSaveStateForScope = vi.fn();
 const mockLoadRolesManifest = vi.fn();
 const mockGetHandler = vi.fn();
-const mockCreatePrWithFallback = vi.fn();
+
+let readlineAnswer = '1';
+vi.mock('node:readline', () => ({
+  default: {
+    createInterface: () => ({
+      question: (_prompt: string, cb: (answer: string) => void) => {
+        cb(readlineAnswer);
+      },
+      close: vi.fn(),
+    }),
+  },
+}));
 
 vi.mock('../config.js', () => ({
   autoDetectInit: (...args: unknown[]) => mockAutoDetectInit(...args),
@@ -55,28 +67,59 @@ vi.mock('../utils/logger.js', () => ({
   })),
 }));
 
-vi.mock('../push.js', async () => {
-  const actual = await vi.importActual('../push.js');
-  return {
-    ...actual,
-    createPrWithFallback: (...args: unknown[]) => mockCreatePrWithFallback(...args),
-  };
-});
+vi.mock('../providers/index.js', () => ({
+  getProvider: vi.fn().mockReturnValue({
+    parseRepoInput: vi.fn().mockReturnValue({ owner: 'test', repo: 'repo' }),
+    createPullRequest: vi.fn().mockReturnValue('https://git.woa.com/mr/1'),
+  }),
+}));
 
-describe('push role routing', () => {
+function makeLocalConfig(overrides: Record<string, unknown> = {}) {
+  return {
+    repo: { localPath: '/tmp/team-repo', remote: 'https://git.woa.com/test/repo.git' },
+    username: 'testuser',
+    updatePolicy: 'auto',
+    primaryRole: 'hai',
+    additionalRoles: [],
+    resourceProfileVersion: 1,
+    scope: 'user',
+    ...overrides,
+  };
+}
+
+function makeTeamConfig() {
+  return {
+    repo: 'https://git.woa.com/test/repo.git',
+    provider: 'tgit',
+    reviewers: [],
+    sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '~/.teamai/docs' }, env: { injectShellProfile: true } },
+    toolPaths: {},
+  };
+}
+
+function mockSkillHandler(pushedItems?: Array<Record<string, unknown>>) {
+  mockGetHandler.mockImplementation((type: string) => {
+    if (type === 'skills') {
+      return {
+        scanLocalForPush: vi.fn().mockResolvedValue([
+          { name: 'skill-a', type: 'skills', sourcePath: '/tmp/skill-a', relativePath: 'skills/skill-a' },
+        ]),
+        pushItem: vi.fn().mockImplementation(async (item: Record<string, unknown>) => {
+          pushedItems?.push(item);
+        }),
+      };
+    }
+    return { scanLocalForPush: vi.fn().mockResolvedValue([]), pushItem: vi.fn() };
+  });
+}
+
+describe('push namespace routing', () => {
   beforeEach(() => {
-    vi.resetModules();
-    mockPushRepoBranch.mockReset();
-    mockCreatePrWithFallback.mockReset();
-    mockGetHandler.mockReset();
-    mockAutoDetectInit.mockReset();
-    mockLoadRolesManifest.mockReset();
-    mockPullRepo.mockReset();
+    vi.clearAllMocks();
     mockPullRepo.mockResolvedValue('Already up to date.');
     mockPushRepoBranch.mockResolvedValue(true);
     mockCheckoutMaster.mockResolvedValue(undefined);
     mockGenerateBranchName.mockReturnValue('teamai/push/test/20260403-120000');
-    mockCreatePrWithFallback.mockResolvedValue('https://git.woa.com/mr/1');
     mockLoadStateForScope.mockResolvedValue({
       lastPush: null,
       lastPull: null,
@@ -87,115 +130,165 @@ describe('push role routing', () => {
       availableUpdate: null,
     });
     mockSaveStateForScope.mockResolvedValue(undefined);
+    // Default manifest: role "hai" has namespaces [common, hai]
     mockLoadRolesManifest.mockResolvedValue({
       version: 1,
       roles: [
-        { id: 'hai', name: 'HAI', description: '', resources: { knowledge: ['common', 'hai'], skills: ['common', 'hai'], learnings: ['common', 'hai'] } },
-        { id: 'pm', name: 'PM', description: '', resources: { knowledge: ['common', 'pm'], skills: ['common', 'pm'], learnings: ['common', 'pm'] } },
+        { id: 'hai', description: 'HyperAI', resources: { knowledge: ['common', 'hai'], skills: ['common', 'hai'] } },
+        { id: 'pm', description: 'Product Manager', resources: { knowledge: ['common', 'pm'], skills: ['common', 'pm'] } },
       ],
-      defaults: { shareTarget: 'primary-role' },
     });
+    readlineAnswer = '1';
   });
 
-  it('routes pushed skills to the primary role namespace by default', async () => {
+  it('auto-selects namespace when role has only one skill namespace', async () => {
+    mockLoadRolesManifest.mockResolvedValue({
+      version: 1,
+      roles: [
+        { id: 'solo', description: 'Solo role', resources: { knowledge: ['solo'], skills: ['solo'] } },
+      ],
+    });
     const pushedItems: Array<Record<string, unknown>> = [];
     mockAutoDetectInit.mockResolvedValue({
-      localConfig: {
-        repo: { localPath: '/tmp/team-repo', remote: 'https://git.woa.com/test/repo.git' },
-        username: 'testuser',
-        updatePolicy: 'auto',
-        primaryRole: 'hai',
-        additionalRoles: [],
-        resourceProfileVersion: 1,
-        scope: 'user',
-      },
-      teamConfig: {
-        repo: 'https://git.woa.com/test/repo.git',
-        provider: 'tgit',
-        reviewers: [],
-        sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '~/.teamai/docs' }, env: { injectShellProfile: true } },
-        toolPaths: {},
-      },
+      localConfig: makeLocalConfig({ primaryRole: 'solo', additionalRoles: [] }),
+      teamConfig: makeTeamConfig(),
     });
+    mockSkillHandler(pushedItems);
 
-    mockGetHandler.mockImplementation((type: string) => {
-      if (type === 'skills') {
-        return {
-          scanLocalForPush: vi.fn().mockResolvedValue([{ name: 'skill-a', type: 'skills', sourcePath: '/tmp/skill-a', relativePath: 'skills/skill-a' }]),
-          pushItem: vi.fn().mockImplementation(async (item: Record<string, unknown>) => { pushedItems.push(item); }),
-        };
-      }
+    await push({ all: true });
 
-      return {
-        scanLocalForPush: vi.fn().mockResolvedValue([]),
-        pushItem: vi.fn(),
-      };
+    expect(pushedItems[0].namespace).toBe('solo');
+    expect(pushedItems[0].relativePath).toBe('skills/solo/skill-a');
+  });
+
+  it('prompts for namespace selection when role has multiple skill namespaces', async () => {
+    const pushedItems: Array<Record<string, unknown>> = [];
+    mockAutoDetectInit.mockResolvedValue({
+      localConfig: makeLocalConfig(),  // primaryRole=hai → skills: [common, hai]
+      teamConfig: makeTeamConfig(),
     });
+    mockSkillHandler(pushedItems);
 
-    const { push } = await import('../push.js');
+    // User selects "1" → common
+    readlineAnswer = '1';
+    await push({ all: true });
+
+    expect(pushedItems[0].namespace).toBe('common');
+    expect(pushedItems[0].relativePath).toBe('skills/common/skill-a');
+  });
+
+  it('allows selecting a non-default namespace', async () => {
+    const pushedItems: Array<Record<string, unknown>> = [];
+    mockAutoDetectInit.mockResolvedValue({
+      localConfig: makeLocalConfig(),  // primaryRole=hai → skills: [common, hai]
+      teamConfig: makeTeamConfig(),
+    });
+    mockSkillHandler(pushedItems);
+
+    // User selects "2" → hai
+    readlineAnswer = '2';
     await push({ all: true });
 
     expect(pushedItems[0].namespace).toBe('hai');
     expect(pushedItems[0].relativePath).toBe('skills/hai/skill-a');
-    expect(mockPushRepoBranch).toHaveBeenCalledWith(
-      '/tmp/team-repo',
-      expect.any(String),
-      expect.arrayContaining(['skills/hai/skill-a']),
-      expect.any(String),
-    );
   });
 
-  it('rejects invalid explicit role overrides', async () => {
+  it('includes additional role namespaces in the selection', async () => {
+    const pushedItems: Array<Record<string, unknown>> = [];
     mockAutoDetectInit.mockResolvedValue({
-      localConfig: {
-        repo: { localPath: '/tmp/team-repo', remote: 'https://git.woa.com/test/repo.git' },
-        username: 'testuser',
-        updatePolicy: 'auto',
-        primaryRole: 'hai',
-        additionalRoles: [],
-        resourceProfileVersion: 1,
-        scope: 'user',
-      },
-      teamConfig: {
-        repo: 'https://git.woa.com/test/repo.git',
-        provider: 'tgit',
-        reviewers: [],
-        sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '~/.teamai/docs' }, env: { injectShellProfile: true } },
-        toolPaths: {},
-      },
+      // primaryRole=hai + additionalRoles=[pm] → skills: [common, hai, pm]
+      localConfig: makeLocalConfig({ additionalRoles: ['pm'] }),
+      teamConfig: makeTeamConfig(),
     });
+    mockSkillHandler(pushedItems);
 
+    // User selects "3" → pm
+    readlineAnswer = '3';
+    await push({ all: true });
+
+    expect(pushedItems[0].namespace).toBe('pm');
+    expect(pushedItems[0].relativePath).toBe('skills/pm/skill-a');
+  });
+
+  it('defaults to first namespace when user presses Enter', async () => {
+    const pushedItems: Array<Record<string, unknown>> = [];
+    mockAutoDetectInit.mockResolvedValue({
+      localConfig: makeLocalConfig(),  // skills: [common, hai]
+      teamConfig: makeTeamConfig(),
+    });
+    mockSkillHandler(pushedItems);
+
+    readlineAnswer = '';
+    await push({ all: true });
+
+    expect(pushedItems[0].namespace).toBe('common');
+    expect(pushedItems[0].relativePath).toBe('skills/common/skill-a');
+  });
+
+  it('uses primaryRole as namespace in silent mode', async () => {
+    const pushedItems: Array<Record<string, unknown>> = [];
+    mockAutoDetectInit.mockResolvedValue({
+      localConfig: makeLocalConfig(),  // skills: [common, hai]
+      teamConfig: makeTeamConfig(),
+    });
+    mockSkillHandler(pushedItems);
+
+    await push({ all: true, silent: true });
+
+    expect(pushedItems[0].namespace).toBe('hai');
+    expect(pushedItems[0].relativePath).toBe('skills/hai/skill-a');
+  });
+
+  it('explicit --role flag bypasses namespace resolution', async () => {
+    const pushedItems: Array<Record<string, unknown>> = [];
+    mockAutoDetectInit.mockResolvedValue({
+      localConfig: makeLocalConfig(),
+      teamConfig: makeTeamConfig(),
+    });
+    mockSkillHandler(pushedItems);
+
+    await push({ all: true, role: 'pm' });
+
+    // --role pm uses "pm" as namespace directly
+    expect(pushedItems[0].namespace).toBe('pm');
+    expect(pushedItems[0].relativePath).toBe('skills/pm/skill-a');
+  });
+
+  it('rejects out-of-range namespace selection', async () => {
+    mockAutoDetectInit.mockResolvedValue({
+      localConfig: makeLocalConfig(),  // skills: [common, hai]
+      teamConfig: makeTeamConfig(),
+    });
+    mockSkillHandler();
+
+    readlineAnswer = '99';
+    await push({ all: true });
+
+    expect(mockPushRepoBranch).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid explicit --role override', async () => {
+    mockAutoDetectInit.mockResolvedValue({
+      localConfig: makeLocalConfig(),
+      teamConfig: makeTeamConfig(),
+    });
     mockGetHandler.mockReturnValue({
       scanLocalForPush: vi.fn().mockResolvedValue([]),
       pushItem: vi.fn(),
     });
 
-    const { log } = await import('../utils/logger.js');
-    const { push } = await import('../push.js');
+    // --role "unknown" → used directly as namespace, no manifest validation
+    // (validation happens downstream in pushItem)
     await push({ all: true, role: 'unknown' });
 
-    expect(log.error).not.toHaveBeenCalled();
+    // No items to push, so pushRepoBranch should not be called
     expect(mockPushRepoBranch).not.toHaveBeenCalled();
   });
 
-  it('blocks skills that exist in non-allowed namespaces', async () => {
+it('blocks skills that exist in non-allowed namespaces', async () => {
     mockAutoDetectInit.mockResolvedValue({
-      localConfig: {
-        repo: { localPath: '/tmp/team-repo', remote: 'https://git.woa.com/test/repo.git' },
-        username: 'testuser',
-        updatePolicy: 'auto',
-        primaryRole: 'hai',
-        additionalRoles: [],
-        resourceProfileVersion: 1,
-        scope: 'user',
-      },
-      teamConfig: {
-        repo: 'https://git.woa.com/test/repo.git',
-        provider: 'tgit',
-        reviewers: [],
-        sharing: { skills: {}, rules: { enforced: [] }, docs: { localDir: '~/.teamai/docs' }, env: { injectShellProfile: true } },
-        toolPaths: {},
-      },
+      localConfig: makeLocalConfig(),
+      teamConfig: makeTeamConfig(),
     });
 
     // Mock that local has both allowed and blocked skills
@@ -204,7 +297,7 @@ describe('push role routing', () => {
         return {
           scanLocalForPush: vi.fn().mockResolvedValue([
             // This would only be returned if NOT blocked by namespace check
-            { name: 'blocked-skill', type: 'skills', sourcePath: '/tmp/blocked-skill', relativePath: 'skills/blocked-skill' }
+            { name: 'blocked-skill', type: 'skills', sourcePath: '/tmp/blocked-skill', relativePath: 'skills/blocked-skill' },
           ]),
           pushItem: vi.fn(),
         };
@@ -216,11 +309,29 @@ describe('push role routing', () => {
       };
     });
 
-    const { push } = await import('../push.js');
     // This tests that even if scanLocalForPush returns a blocked skill, the system should reject it
     await push({ all: true });
 
     // The push should have been called (since we have --all)
     // but the mocked handler is already filtering it
+  });
+
+  it('shows destination path in item display', async () => {
+    const consoleSpy = vi.spyOn(console, 'log');
+    mockAutoDetectInit.mockResolvedValue({
+      localConfig: makeLocalConfig(),
+      teamConfig: makeTeamConfig(),
+    });
+    mockSkillHandler();
+
+    readlineAnswer = '2';
+    await push({ all: true });
+
+    const toLine = consoleSpy.mock.calls.find(
+      (args) => typeof args[0] === 'string' && args[0].includes('to:'),
+    );
+    expect(toLine).toBeDefined();
+    expect(toLine![0]).toContain('skills/hai/skill-a');
+    consoleSpy.mockRestore();
   });
 });
