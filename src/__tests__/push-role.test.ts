@@ -29,7 +29,23 @@ vi.mock('../config.js', () => ({
   saveStateForScope: (...args: unknown[]) => mockSaveStateForScope(...args),
 }));
 
+const mockMerge = vi.fn();
+const mockStash = vi.fn();
+const mockGitStatus = vi.fn().mockResolvedValue({
+  modified: [],
+  not_added: [],
+  created: [],
+  conflicted: [],
+  staged: [],
+});
+const mockCreateGit = vi.fn().mockReturnValue({
+  status: mockGitStatus,
+  merge: mockMerge,
+  stash: mockStash,
+});
+
 vi.mock('../utils/git.js', () => ({
+  createGit: (...args: unknown[]) => mockCreateGit(...args),
   pullRepo: (...args: unknown[]) => mockPullRepo(...args),
   pushRepoBranch: (...args: unknown[]) => mockPushRepoBranch(...args),
   checkoutMaster: (...args: unknown[]) => mockCheckoutMaster(...args),
@@ -404,5 +420,40 @@ it('blocks skills that exist in non-allowed namespaces', async () => {
     expect(toLine).toBeDefined();
     expect(toLine![0]).toContain('skills/hai/skill-a');
     consoleSpy.mockRestore();
+  });
+
+  it('aborts stale merge when conflicted files exist before pull', async () => {
+    // Simulate conflicted files in team repo (e.g. votes/user.yaml)
+    const conflictedStatus = {
+      modified: [],
+      not_added: [],
+      created: [],
+      conflicted: ['votes/jeffyxu.yaml'],
+      staged: [],
+    };
+    const cleanStatus = {
+      modified: [],
+      not_added: [],
+      created: [],
+      conflicted: [],
+      staged: [],
+    };
+    mockGitStatus
+      .mockResolvedValueOnce(conflictedStatus)  // first call: sees conflict
+      .mockResolvedValueOnce(cleanStatus);       // after merge --abort: clean
+
+    mockAutoDetectInit.mockResolvedValue({
+      localConfig: makeLocalConfig({ primaryRole: undefined }),
+      teamConfig: makeTeamConfig(),
+    });
+    mockSkillHandler();
+    mockScanTeamRepoNamespaces.mockResolvedValue([]);
+
+    await push({ all: true });
+
+    // Should have called merge --abort
+    expect(mockMerge).toHaveBeenCalledWith(['--abort']);
+    // Pull should still proceed
+    expect(mockPullRepo).toHaveBeenCalled();
   });
 });

@@ -2,7 +2,7 @@ import YAML from 'yaml';
 import path from 'node:path';
 import { readUsageEvents, truncateUsageAfterReport } from './usage-tracker.js';
 import { aggregateUsage } from './stats.js';
-import { pushRepoDirectly, pullRepo } from './utils/git.js';
+import { createGit, pushRepoDirectly, pullRepo } from './utils/git.js';
 import { writeFile, readFileSafe, ensureDir, pathExists, listFiles } from './utils/fs.js';
 import { log } from './utils/logger.js';
 import type { UserStats } from './types.js';
@@ -104,8 +104,15 @@ export async function reportUsageToTeam(
     const events = await readUsageEvents();
     const filesToPush: string[] = [];
 
-    // Pull first to get the freshest remote state before merging
-    // (prevents race condition where concurrent push overwrites our merge)
+    // Pull first to get the freshest remote state before merging.
+    // Abort any stale merge (conflicted files) before pulling —
+    // same pattern as push.ts to prevent unmerged votes from blocking.
+    const git = createGit(repoPath);
+    const status = await git.status();
+    if (status.conflicted.length > 0) {
+      log.debug(`reportUsageToTeam: aborting stale merge (${status.conflicted.length} conflicted file(s))`);
+      await git.merge(['--abort']);
+    }
     await pullRepo(repoPath);
 
     // Process usage stats if any events exist

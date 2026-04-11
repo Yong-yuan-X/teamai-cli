@@ -97,14 +97,25 @@ export async function push(options: GlobalOptions & { all?: boolean; role?: stri
   const { localConfig, teamConfig } = await autoDetectInit();
   const scopeLabel = localConfig.scope;
 
-  // Pull latest master BEFORE scanning so detection runs against up-to-date repo
-  // Stash any uncommitted changes first (e.g. votes written by autoUpvote in
-  // older versions) so that git pull doesn't fail on a dirty working tree.
+  // Pull latest master BEFORE scanning so detection runs against up-to-date repo.
+  // Handle two classes of dirty state that block git pull:
+  // 1. Unmerged (conflicted) files from a previous failed merge — abort the merge
+  // 2. Uncommitted changes (e.g. votes written by autoUpvote) — stash and restore
   const pullSpin = spinner('Pulling latest master...').start();
   try {
     const repoPath = localConfig.repo.localPath;
     const git = createGit(repoPath);
-    const status = await git.status();
+    let status = await git.status();
+
+    // Abort any in-progress merge that left unmerged (conflicted) files.
+    // These are typically votes/*.yaml from a previous pull that collided.
+    // Aborting is safe — the next pull will re-fetch everything.
+    if (status.conflicted.length > 0) {
+      log.debug(`Aborting stale merge (${status.conflicted.length} conflicted file(s))`);
+      await git.merge(['--abort']);
+      status = await git.status();
+    }
+
     const isDirty = status.modified.length > 0
       || status.not_added.length > 0
       || status.created.length > 0;
