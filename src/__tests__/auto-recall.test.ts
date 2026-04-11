@@ -128,6 +128,35 @@ const error_code = getErrorCode();`;
 - Cache frequently accessed data`;
         expect(containsError(output)).toBe(false);
     });
+
+    it('ignores source code with method calls and template literals', () => {
+        // Source code output from grep/git diff containing error keywords
+        // should be recognized as code, not runtime errors.
+        const output = 'pullSpin.warn(`Pull failed: ${(e as Error).message}`);';
+        expect(containsError(output)).toBe(false);
+    });
+
+    it('ignores source code with arrow functions and error keywords', () => {
+        const output = `const handleError = (err) => {
+  logger.error(err.message);
+};`;
+        expect(containsError(output)).toBe(false);
+    });
+
+    it('ignores source code with const/let declarations containing error terms', () => {
+        const output = 'const errorMsg = "Failed to connect";';
+        expect(containsError(output)).toBe(false);
+    });
+
+    it('ignores source code with import/export statements', () => {
+        const output = 'import { PermissionError } from "./errors";';
+        expect(containsError(output)).toBe(false);
+    });
+
+    it('ignores source code with function declarations', () => {
+        const output = 'function handleError(err) { throw new Error(err); }';
+        expect(containsError(output)).toBe(false);
+    });
 });
 
 // ─── extractQuery ──────────────────────────────────────────

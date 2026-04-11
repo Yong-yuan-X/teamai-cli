@@ -107,6 +107,14 @@ const FALSE_POSITIVE_PATTERNS: RegExp[] = [
     /\bError\s+Types?\b/i,               // Topic heading "Error Types"
     /catch\s*\(/,                          // catch blocks in code
     /try\s*\{/,                            // try blocks in code
+    /\.\w+\s*\(/,                          // Method calls: foo.bar(, pullSpin.warn(
+    /=>\s*\{/,                             // Arrow functions: => {
+    /`[^`]*\$\{/,                          // Template literals: `...${
+    /\bfunction\s+\w+/,                    // Function declarations
+    /\bconst\s+\w+\s*=/,                   // const declarations
+    /\blet\s+\w+\s*=/,                     // let declarations
+    /\bimport\s+/,                         // import statements
+    /\bexport\s+/,                         // export statements
 ];
 
 /** Maximum length of tool_output to scan for errors. */
