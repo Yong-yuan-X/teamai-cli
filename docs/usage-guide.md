@@ -198,10 +198,25 @@ teamai pull --dry-run    # 试运行，不实际修改
 ```bash
 teamai push          # 扫描新增/修改的资源，创建 MR
 teamai push --all    # 跳过确认，直接推送
-teamai push --role pm  # 将本次 project skill 推送到 skills/pm/<skill-name>/
+teamai push --role pm  # 将本次 skill 推送到 skills/pm/<skill-name>/
 ```
 
-如果本地配置包含 `primaryRole`，`teamai push` 在推送 project skill 时默认写入 `skills/<primaryRole>/<skill-name>/`。使用 `--role <id>` 可临时覆盖目标 namespace；角色 id 必须存在于 `manifest/roles.yaml`。
+**命名空间选择（新 skill）：** 推送新 skill 时，CLI 会自动检测可用的命名空间并提供交互式选择：
+
+```
+Which namespace should new skills be pushed to?
+  1. common
+  2. hai
+  3. pm
+Choose namespace [1-3] (default: 1 = common):
+```
+
+- 有 `primaryRole` 时，从 manifest 展开可用 namespace 列表
+- 无 `primaryRole` 时，自动扫描团队仓库目录结构
+- 单一命名空间时自动选中；`--silent` 模式使用默认值
+- 修改已有 skill 时自动保持原 namespace
+
+**YAML Frontmatter 自动补全：** 推送时 CLI 自动检查 `SKILL.md`，缺少 `name`/`description` 则自动补全，无需手动维护。
 
 ### 查看状态
 
@@ -261,12 +276,6 @@ teamai pull
 # 创建 skill
 mkdir -p ~/.claude/skills/my-deploy-helper
 cat > ~/.claude/skills/my-deploy-helper/SKILL.md << 'EOF'
----
-name: my-deploy-helper
-description: 帮助团队部署服务的自动化技能
-tags: [deploy, automation]
----
-
 # Deploy Helper
 当用户请求部署时，按以下步骤执行：
 1. 检查当前分支是否为 master
@@ -275,12 +284,22 @@ tags: [deploy, automation]
 4. 部署 `./deploy.sh`
 EOF
 
-# 推送到团队
+# 推送到团队（YAML frontmatter 会自动补全）
 teamai push
 
 # 推送到指定角色 namespace
 teamai push --role pm
 ```
+
+> **Frontmatter 自动补全：** 推送时 CLI 会检查 `SKILL.md` 的 YAML frontmatter（`name`/`description`），缺失则自动从目录名和内容中推导并补全。你也可以手动添加更精确的 frontmatter：
+>
+> ```yaml
+> ---
+> name: my-deploy-helper
+> description: 帮助团队部署服务的自动化技能
+> tags: [deploy, automation]
+> ---
+> ```
 
 启用角色化 skills 后，push 的目标目录为：
 

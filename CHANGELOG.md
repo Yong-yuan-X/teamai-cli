@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [Unreleased]
+
+### ✨ 新功能
+
+- **Push 交互式命名空间选择**：推送新 skill 时，CLI 自动检测团队仓库中的命名空间并提供交互式选择，无需手动指定 `--role` (!128)
+  - 有 `primaryRole` 时，从 manifest 展开可用 namespace 列表
+  - 无 `primaryRole` 时，自动扫描团队仓库目录结构
+  - 单一命名空间时自动选中，`--silent` 模式下使用默认值
+- **Push 自动注入 YAML Frontmatter**：推送 skill 时自动检查 `SKILL.md`，缺少 `name`/`description` frontmatter 则自动补全 (!130)
+  - 从目录名推导 `name`，从第一个标题或有意义文本行推导 `description`
+  - 已有完整 frontmatter 的文件不做任何修改
+
+### 🐛 修复
+
+- **Learnings 改为扁平共享模型**：learnings 不再按角色 namespace 隔离，全团队共享 (!126)
+- **Push role 模式过滤修正**：修复 role 模式下误显示非允许命名空间 skill 的问题 (!127)
+- **Push 支持无 role 的 namespaced 仓库**：无 `primaryRole` 配置时也能正确推送到有命名空间结构的团队仓库 (!129)
+- **Votes 不再阻塞 push**：votes 改为本地存储（`~/.teamai/votes/`），由 `teamai pull` 的 auto-report 统一同步到团队仓库，不再直接写入 repo 导致脏文件阻塞 git 操作 (!131)
+- **Pull 跳过未安装的 AI 工具**：pull 时检测工具是否已安装，跳过未安装工具，不再创建多余的空目录 (!132)
+- **Team repo 自动恢复**：push/pull 前自动检测并恢复 team repo 的脏状态（unmerged 文件、残留 push 分支），使用 `git reset --hard` + 切回 master (!133, !134)
+- **Auto-recall 误判修复**：修复源代码中的错误关键词被 auto-recall 误判为运行时错误触发搜索的问题 (!135)
+
 ## [0.13.2](https://git.woa.com/teamai/teamai-cli/compare/v0.13.1...v0.13.2) (2026-04-10)
 
 ### 🐛 修复

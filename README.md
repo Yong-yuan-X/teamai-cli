@@ -33,7 +33,7 @@ teamai init --repo yourteam/yourproject --scope project
 | 命令 | 说明 |
 |------|------|
 | `teamai init [--scope <user\|project>]` | 初始化（自动安装 gf CLI、OAuth 登录、关联仓库、注册成员、配置 reviewers、注入 hooks） |
-| `teamai push [--all] [--role <id>]` | 推送本地新资源到独立分支并创建 Merge Request；项目 skill 默认推送到 `primaryRole`，可用 `--role` 覆盖 |
+| `teamai push [--all] [--role <id>]` | 推送本地新资源到独立分支并创建 Merge Request；新 skill 交互式选择目标命名空间，可用 `--role` 覆盖 |
 | `teamai pull [--silent]` | 拉取团队资源并注入到本地 AI 工具（支持双 scope 依次拉取） |
 | `teamai status` | 查看本地 vs 团队仓库差异 |
 | `teamai list [type]` | 列出资源（skills\|rules\|docs） |
@@ -76,7 +76,7 @@ teamai init --repo yourteam/yourproject --scope project
 - Skills 同步到 `~/.claude/skills/`、`~/.codex/skills/`、`~/.claude-internal/skills/`、`~/.cursor/skills/`、`~/.codebuddy/skills/`
 - Rules 同步到各工具的 rules 目录，并通过标记注释合并到 `CLAUDE.md`（支持 claude、claude-internal、codebuddy）
 - Knowledge 同步到 `~/.teamai/docs/`
-- Learnings 同步到 `~/.teamai/learnings/`，并基于该目录构建 recall 索引
+- Learnings 同步到 `~/.teamai/learnings/`，并基于该目录构建 recall 索引（全团队共享，不按角色拆分）
 
 ## 角色化 Skills
 
@@ -94,7 +94,7 @@ rules/                     # 全局，不做角色拆分
 - Skills 从 `skills/<namespace>/<skill-name>/` 拍平安装到本地 `<tool>/skills/<skill-name>/`，用户无感知 namespace 结构。
 - 如果激活 namespace 中出现同名 skill，`pull` 会直接失败，避免隐式覆盖。
 - 不在激活 namespace 中、也不在 tag 过滤结果中的 skills 会被自动清理。
-- `rules/`、`docs/`、`learnings/` 仍然保持原有逻辑，不做角色拆分。
+- `rules/`、`docs/`、`learnings/` 仍然保持原有逻辑，不做角色拆分（learnings 全团队共享）。
 
 配置示例：
 
@@ -109,18 +109,29 @@ resourceProfileVersion: 1
 
 ## 角色化推送
 
-角色化仓库下，推送 skill 的默认目标是 `primaryRole` 对应的 namespace。
+角色化仓库下，推送新 skill 时 CLI 会自动检测可用的命名空间并提供交互式选择：
 
 ```bash
-# 项目 skill 默认推送到 skills/<primaryRole>/<skill-name>/
+# 交互式选择命名空间（推荐）
 teamai push
+# 输出：
+# Which namespace should new skills be pushed to?
+#   1. common
+#   2. hai
+#   3. pm
+# Choose namespace [1-3] (default: 1 = common):
 
-# 显式把本次 skill 推送到指定角色 namespace
+# 显式指定目标 namespace
 teamai push --role pm
 ```
 
-- `teamai push --role <id>` 影响 project skill 的目标目录，写入 `skills/<role>/<skill-name>/`。
-- 如果 `--role` 不在 `manifest/roles.yaml` 中，CLI 会直接报错。
+- 有 `primaryRole` 时，从 `manifest/roles.yaml` 展开可用 namespace 列表
+- 无 `primaryRole` 时，自动扫描团队仓库目录结构中的 namespace
+- 单一命名空间时自动选中，无需交互
+- `--role <id>` 可临时覆盖目标 namespace
+- 修改已有 skill 时自动保持原 namespace，无需重新选择
+
+推送时 CLI 会自动检查 `SKILL.md` 的 YAML frontmatter（`name`/`description`），缺失则自动补全，无需手动维护。
 
 ## Scope（作用域）
 
