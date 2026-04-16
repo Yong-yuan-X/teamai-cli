@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { log } from './utils/logger.js';
 import { ensureDir } from './utils/fs.js';
+import { resolveMonitorPid } from './pid-monitor.js';
 import {
   DASHBOARD_EVENTS_PATH,
   DASHBOARD_EVENTS_DIR,
@@ -187,6 +188,19 @@ export async function parseHookEvent(
     event.toolName = hookData.tool_name;
   }
 
+  // Resolve AI tool PID for liveness monitoring on session start
+  if (eventType === 'session_start') {
+    const ppid = process.ppid ?? process.pid;
+    if (ppid > 1) {
+      try {
+        event.monitorPid = resolveMonitorPid(ppid);
+      } catch {
+        // PID resolution failed — fall back to ppid
+        event.monitorPid = ppid;
+      }
+    }
+  }
+
   // Extract prompt summary from UserPromptSubmit
   if (eventType === 'prompt_submit' && typeof hookData.prompt === 'string') {
     // Keep first 200 chars of the prompt as summary
@@ -274,10 +288,11 @@ export async function readEvents(eventsPath?: string): Promise<DashboardEvent[]>
 /**
  * Rebuild current session states from a list of events.
  * This is the core "event sourcing" logic:
- * - session_start → create session
- * - tool_use → update lastActivity + lastTool
- * - prompt_submit → capture first prompt + collect all prompts, mark as running
- * - stop → mark session as stopped, capture AI output
+ * - session_start → create session, record monitorPid
+ * - tool_use → update lastActivity + lastTool, mark running
+ * - prompt_submit → capture prompt, mark running
+ * - stop → mark as waiting_for_input (LLM finished, user still in session)
+ * - process_exit → mark as stopped (process truly exited)
  * Then apply timeouts: idle after 5 min, remove stale after 30 min.
  * Stopped sessions are kept for 30 seconds before removal.
  */
@@ -313,6 +328,7 @@ export function rebuildSessions(events: DashboardEvent[]): DashboardSession[] {
       case 'session_start':
         session.status = 'running';
         session.startedAt = event.timestamp;
+        if (event.monitorPid) session.monitorPid = event.monitorPid;
         break;
       case 'tool_use':
         session.status = 'running';
@@ -330,11 +346,19 @@ export function rebuildSessions(events: DashboardEvent[]): DashboardSession[] {
         }
         break;
       case 'stop':
-        session.status = 'stopped';
-        session.stoppedAt = event.timestamp;
+        // Stop = LLM finished responding, but the user is still in the session.
+        // Mark as waiting_for_input instead of stopped. The session will return
+        // to 'running' when the next prompt_submit or tool_use arrives.
+        session.status = 'waiting_for_input';
         if (event.stoppedOutput) {
           session.stoppedOutput = event.stoppedOutput;
         }
+        break;
+      case 'process_exit':
+        // The AI tool process has truly exited (detected by PID liveness monitor).
+        // This is the real "session ended" signal.
+        session.status = 'stopped';
+        session.stoppedAt = event.timestamp;
         break;
     }
   }

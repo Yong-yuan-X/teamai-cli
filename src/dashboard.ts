@@ -3,11 +3,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { log } from './utils/logger.js';
 import { ensureDir } from './utils/fs.js';
-import { readEvents, rebuildSessions } from './dashboard-collector.js';
+import { readEvents, rebuildSessions, appendEvent } from './dashboard-collector.js';
+import { isProcessAlive } from './pid-monitor.js';
 import {
   DASHBOARD_DEFAULT_PORT,
   DASHBOARD_EVENTS_PATH,
   DASHBOARD_EVENTS_DIR,
+  DASHBOARD_PID_CHECK_INTERVAL_MS,
+  type DashboardEvent,
 } from './types.js';
 import { getDashboardHtml } from './dashboard-html.js';
 
@@ -65,6 +68,46 @@ export async function startDashboard(port?: number): Promise<void> {
       }
     }, 200);
   });
+
+  // ─── PID liveness monitor ────────────────────────────
+  //
+  //  Periodically check if monitored PIDs are still alive.
+  //  If a session's AI tool process has exited without a subsequent
+  //  prompt_submit or tool_use event, emit a 'process_exit' event
+  //  to mark the session as truly stopped.
+  //
+  //  This complements the Stop hook (which only means "LLM finished
+  //  responding") by detecting actual process exit.
+  //
+  const pidCheckInterval = setInterval(async () => {
+    try {
+      const events = await readEvents(eventsPath);
+      const sessions = rebuildSessions(events);
+
+      for (const session of sessions) {
+        // Only check non-stopped sessions with a monitorPid
+        if (session.status === 'stopped') continue;
+        if (!session.monitorPid) continue;
+
+        if (!isProcessAlive(session.monitorPid)) {
+          const exitEvent: DashboardEvent = {
+            type: 'process_exit',
+            timestamp: new Date().toISOString(),
+            sessionId: session.sessionId,
+            tool: session.tool,
+            cwd: session.cwd,
+          };
+          await appendEvent(exitEvent);
+          log.info(
+            `dashboard: detected process exit for session ${session.sessionId.slice(0, 16)}` +
+            ` (monitorPid ${session.monitorPid})`,
+          );
+        }
+      }
+    } catch (e) {
+      log.debug(`dashboard: PID check error: ${(e as Error).message}`);
+    }
+  }, DASHBOARD_PID_CHECK_INTERVAL_MS);
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url ?? '/', `http://localhost:${serverPort}`);
@@ -144,6 +187,7 @@ export async function startDashboard(port?: number): Promise<void> {
   const shutdown = () => {
     log.info('\nShutting down dashboard...');
     watcher.close();
+    clearInterval(pidCheckInterval);
     for (const client of clients) {
       client.end();
     }

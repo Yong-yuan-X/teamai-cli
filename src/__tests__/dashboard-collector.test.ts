@@ -320,24 +320,83 @@ describe('rebuildSessions', () => {
     expect(sessions[0].promptSummary).toBe('Fix the bug');
   });
 
-  it('keeps recently stopped sessions for 30 seconds', () => {
+  it('stop event marks session as waiting_for_input (not stopped)', () => {
     const events: DashboardEvent[] = [
       { type: 'session_start', timestamp: now, sessionId: 's1', tool: 'claude', cwd: '/proj' },
       { type: 'stop', timestamp: now, sessionId: 's1', tool: 'claude' },
     ];
     const sessions = rebuildSessions(events);
     expect(sessions).toHaveLength(1);
+    expect(sessions[0].status).toBe('waiting_for_input');
+  });
+
+  it('stop then prompt_submit returns to running', () => {
+    const events: DashboardEvent[] = [
+      { type: 'session_start', timestamp: now, sessionId: 's1', tool: 'claude', cwd: '/proj' },
+      { type: 'stop', timestamp: now, sessionId: 's1', tool: 'claude' },
+      { type: 'prompt_submit', timestamp: now, sessionId: 's1', tool: 'claude', promptSummary: 'Next question' },
+    ];
+    const sessions = rebuildSessions(events);
+    expect(sessions[0].status).toBe('running');
+  });
+
+  it('stop then tool_use returns to running', () => {
+    const events: DashboardEvent[] = [
+      { type: 'session_start', timestamp: now, sessionId: 's1', tool: 'claude', cwd: '/proj' },
+      { type: 'stop', timestamp: now, sessionId: 's1', tool: 'claude' },
+      { type: 'tool_use', timestamp: now, sessionId: 's1', tool: 'claude', toolName: 'Read' },
+    ];
+    const sessions = rebuildSessions(events);
+    expect(sessions[0].status).toBe('running');
+  });
+
+  it('process_exit marks session as stopped', () => {
+    const events: DashboardEvent[] = [
+      { type: 'session_start', timestamp: now, sessionId: 's1', tool: 'claude', cwd: '/proj' },
+      { type: 'stop', timestamp: now, sessionId: 's1', tool: 'claude' },
+      { type: 'process_exit', timestamp: now, sessionId: 's1', tool: 'claude', cwd: '/proj' },
+    ];
+    const sessions = rebuildSessions(events);
+    expect(sessions).toHaveLength(1);
     expect(sessions[0].status).toBe('stopped');
   });
 
-  it('removes stopped sessions after 30 seconds', () => {
+  it('keeps process_exit stopped sessions for 30 seconds', () => {
+    const events: DashboardEvent[] = [
+      { type: 'session_start', timestamp: now, sessionId: 's1', tool: 'claude', cwd: '/proj' },
+      { type: 'process_exit', timestamp: now, sessionId: 's1', tool: 'claude', cwd: '/proj' },
+    ];
+    const sessions = rebuildSessions(events);
+    expect(sessions).toHaveLength(1);
+    expect(sessions[0].status).toBe('stopped');
+  });
+
+  it('removes process_exit stopped sessions after 30 seconds', () => {
     const oldTime = new Date(Date.now() - 35 * 1000).toISOString(); // 35 sec ago
     const events: DashboardEvent[] = [
       { type: 'session_start', timestamp: oldTime, sessionId: 's1', tool: 'claude', cwd: '/proj' },
-      { type: 'stop', timestamp: oldTime, sessionId: 's1', tool: 'claude' },
+      { type: 'process_exit', timestamp: oldTime, sessionId: 's1', tool: 'claude', cwd: '/proj' },
     ];
     const sessions = rebuildSessions(events);
     expect(sessions).toHaveLength(0);
+  });
+
+  it('propagates monitorPid from session_start', () => {
+    const events: DashboardEvent[] = [
+      { type: 'session_start', timestamp: now, sessionId: 's1', tool: 'claude', cwd: '/proj', monitorPid: 12345 },
+    ];
+    const sessions = rebuildSessions(events);
+    expect(sessions[0].monitorPid).toBe(12345);
+  });
+
+  it('sessions without monitorPid still work (backward compat)', () => {
+    const events: DashboardEvent[] = [
+      { type: 'session_start', timestamp: now, sessionId: 's1', tool: 'claude', cwd: '/proj' },
+      { type: 'stop', timestamp: now, sessionId: 's1', tool: 'claude' },
+    ];
+    const sessions = rebuildSessions(events);
+    expect(sessions[0].monitorPid).toBeUndefined();
+    expect(sessions[0].status).toBe('waiting_for_input');
   });
 
   it('collects all prompts in session', () => {
@@ -363,7 +422,7 @@ describe('rebuildSessions', () => {
   it('sorts active sessions before stopped sessions', () => {
     const events: DashboardEvent[] = [
       { type: 'session_start', timestamp: now, sessionId: 's1', tool: 'claude', cwd: '/proj' },
-      { type: 'stop', timestamp: now, sessionId: 's1', tool: 'claude' },
+      { type: 'process_exit', timestamp: now, sessionId: 's1', tool: 'claude', cwd: '/proj' },
       { type: 'session_start', timestamp: now, sessionId: 's2', tool: 'claude', cwd: '/proj2' },
     ];
     const sessions = rebuildSessions(events);

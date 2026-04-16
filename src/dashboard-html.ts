@@ -81,6 +81,7 @@ export function getDashboardHtml(port: number): string {
       border-radius: 50%;
     }
     .stat-dot.running { background: var(--green); }
+    .stat-dot.waiting { background: var(--yellow); }
     .stat-dot.idle { background: var(--gray); }
     .stat-dot.stopped { background: var(--text-muted); }
 
@@ -379,6 +380,7 @@ export function getDashboardHtml(port: number): string {
 
     function renderStats() {
       const running = sessions.filter(s => s.status === 'running').length;
+      const waiting = sessions.filter(s => s.status === 'waiting_for_input').length;
       const idle = sessions.filter(s => s.status === 'idle').length;
       const stopped = sessions.filter(s => s.status === 'stopped').length;
       const total = sessions.length;
@@ -390,6 +392,7 @@ export function getDashboardHtml(port: number): string {
 
       statsEl.innerHTML = '<div class="stats-bar">' +
         (running > 0 ? '<div class="stat-item"><span class="stat-dot running"></span>' + running + ' active</div>' : '') +
+        (waiting > 0 ? '<div class="stat-item"><span class="stat-dot waiting"></span>' + waiting + ' waiting</div>' : '') +
         (idle > 0 ? '<div class="stat-item"><span class="stat-dot idle"></span>' + idle + ' idle</div>' : '') +
         (stopped > 0 ? '<div class="stat-item"><span class="stat-dot stopped"></span>' + stopped + ' stopped</div>' : '') +
         '</div>';

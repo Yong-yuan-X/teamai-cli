@@ -285,7 +285,7 @@ export interface SessionRecord {
 
 export type DashboardSessionStatus = 'running' | 'waiting_for_input' | 'error' | 'idle' | 'stopped';
 
-export type DashboardEventType = 'session_start' | 'tool_use' | 'prompt_submit' | 'stop';
+export type DashboardEventType = 'session_start' | 'tool_use' | 'prompt_submit' | 'stop' | 'process_exit';
 
 export interface DashboardEvent {
   /** Event type mapped from hook event */
@@ -308,6 +308,8 @@ export interface DashboardEvent {
   stoppedOutput?: string;
   /** Path to Claude Code transcript file (from Stop hook STDIN) */
   transcriptPath?: string;
+  /** Resolved PID of the AI tool main process (for liveness monitoring) */
+  monitorPid?: number;
 }
 
 export interface DashboardSession {
@@ -333,6 +335,8 @@ export interface DashboardSession {
   stoppedOutput: string;
   /** ISO 8601 timestamp of when the session was stopped */
   stoppedAt: string;
+  /** Resolved PID of the AI tool main process (for liveness monitoring) */
+  monitorPid?: number;
 }
 
 export const DASHBOARD_EVENTS_DIR = `${TEAMAI_HOME}/dashboard`;
@@ -346,6 +350,8 @@ export const DASHBOARD_STALE_TIMEOUT_MS = 30 * 60 * 1000;
 export const DASHBOARD_COMPACTION_THRESHOLD = 10_000;
 /** Stopped sessions are removed from the dashboard after this many ms */
 export const DASHBOARD_STOPPED_DISPLAY_MS = 30 * 1000;
+/** Interval (ms) between PID liveness checks in the dashboard server */
+export const DASHBOARD_PID_CHECK_INTERVAL_MS = 15_000;
 
 // ─── Contribute (session auto-contribute) ────────────
 //
