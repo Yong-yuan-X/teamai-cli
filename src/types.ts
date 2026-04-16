@@ -221,6 +221,9 @@ export const TEAMAI_ENV_END = '# [teamai:env:end]';
 export const TEAMAI_CULTURE_START = '<!-- [teamai:culture:start] -->';
 export const TEAMAI_CULTURE_END = '<!-- [teamai:culture:end] -->';
 
+export const TEAMAI_CLAUDEMD_START = '<!-- [teamai:claudemd:start] -->';
+export const TEAMAI_CLAUDEMD_END = '<!-- [teamai:claudemd:end] -->';
+
 // ─── Usage tracking ────────────────────────────────────
 
 /** Regex for valid skill names: alphanumeric, hyphens, underscores, colons, dots. Max 200 chars. */

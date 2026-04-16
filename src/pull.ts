@@ -15,6 +15,8 @@ import {
   LEARNINGS_LOCAL_DIR,
   TEAMAI_CULTURE_START,
   TEAMAI_CULTURE_END,
+  TEAMAI_CLAUDEMD_START,
+  TEAMAI_CLAUDEMD_END,
   CultureFrontmatterSchema,
   resolveBaseDir,
   getTeamaiHome,
@@ -505,6 +507,34 @@ async function pullForScope(
     }
   }
 
+  // Step 3.7: Inject shared claudemd instructions into CLAUDE.md
+  if (!options.dryRun) {
+    try {
+      const claudemdContents = await collectClaudemdFiles(
+          localConfig.repo.localPath, roleContext);
+      if (claudemdContents.length > 0) {
+        const compiled = compileClaudemd(claudemdContents);
+        if (compiled) {
+          const baseDir = resolveBaseDir(localConfig);
+          for (const [tool, toolPath] of Object.entries(freshConfig.toolPaths)) {
+            if (!toolPath.claudemd) continue;
+            if (toolPath.rules && !await ResourceHandler.isToolInstalled(toolPath.rules, baseDir)) continue;
+            const claudeMdPath = path.join(baseDir, toolPath.claudemd);
+            try {
+              await injectClaudeMdSection(claudeMdPath, TEAMAI_CLAUDEMD_START, TEAMAI_CLAUDEMD_END, compiled);
+              log.debug(`Injected shared instructions into ${tool} CLAUDE.md`);
+            } catch (e) {
+              log.warn(`Failed to inject shared instructions into ${tool} CLAUDE.md: ${(e as Error).message}`);
+            }
+          }
+          log.success(`[${scopeLabel}] Synced shared instructions (${claudemdContents.length} file(s))`);
+        }
+      }
+    } catch (e) {
+      log.debug(`Shared instructions sync skipped: ${(e as Error).message}`);
+    }
+  }
+
   // Step 4: Deploy CLI built-in skills
   if (!options.dryRun) {
     try {
@@ -638,6 +668,66 @@ export function compileCulture(raw: string): string | null {
     ].join('\n');
 
     return block;
+}
+
+/**
+ * Merge one or more claudemd markdown files into a single CLAUDE.md injection block.
+ *
+ * Unlike compileCulture(), no frontmatter parsing — content is injected as-is.
+ * Returns null if all contents are empty.
+ */
+export function compileClaudemd(contents: string[]): string | null {
+    const parts = contents
+        .map((c) => c.trim())
+        .filter(Boolean);
+    if (parts.length === 0) return null;
+
+    return [
+        TEAMAI_CLAUDEMD_START,
+        '<!-- DO NOT EDIT: This section is auto-managed by teamai -->',
+        '',
+        parts.join('\n\n'),
+        '',
+        TEAMAI_CLAUDEMD_END,
+    ].join('\n');
+}
+
+/**
+ * Collect claudemd .md files filtered by the user's active knowledge namespaces.
+ *
+ * Walks claudemd/<namespace>/*.md for each active namespace.
+ * Falls back to collecting ALL namespace dirs when no role context is available.
+ */
+async function collectClaudemdFiles(
+    repoPath: string,
+    roleContext: RolePullContext | null,
+): Promise<string[]> {
+    const claudemdDir = path.join(repoPath, 'claudemd');
+    if (!await pathExists(claudemdDir)) return [];
+
+    // Determine which namespace dirs to scan
+    let namespaceDirs: string[];
+    if (roleContext) {
+        namespaceDirs = roleContext.activeNamespaces.knowledge;
+    } else {
+        // No role configured → scan all subdirectories
+        namespaceDirs = await listDirs(claudemdDir);
+    }
+
+    const contents: string[] = [];
+    for (const ns of namespaceDirs) {
+        const nsDir = path.join(claudemdDir, ns);
+        if (!await pathExists(nsDir)) continue;
+        const files = (await listFiles(nsDir))
+            .filter((f) => f.endsWith('.md'))
+            .sort();
+        for (const file of files) {
+            const content = await readFileSafe(path.join(nsDir, file));
+            if (content) contents.push(content);
+        }
+    }
+
+    return contents;
 }
 
 /**
