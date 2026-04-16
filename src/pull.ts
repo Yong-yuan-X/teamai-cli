@@ -293,10 +293,18 @@ async function pullForScope(
         : await handler.scanTeamForPull(freshConfig, localConfig);
 
       const allTeamSkills = await handler.scanTeamForPull(freshConfig, localConfig);
-      const { included: tagIncluded, skipped: tagSkipped } = filterByTags(
-        allTeamSkills, tagsConfig, subscribedTags, 'skills',
-      );
-      skippedByTags = tagSkipped.length;
+
+      // Tag channel: only augment when subscriptions are actually active
+      const hasActiveTagSubscriptions = tagsConfig != null
+        && subscribedTags != null
+        && subscribedTags.length > 0;
+
+      let tagIncluded: ResourceItem[] = [];
+      if (hasActiveTagSubscriptions) {
+        const tagResult = filterByTags(allTeamSkills, tagsConfig, subscribedTags, 'skills');
+        tagIncluded = tagResult.included;
+        skippedByTags = tagResult.skipped.length;
+      }
 
       // Union: merge directory items with tag-matched items
       const merged = new Map<string, ResourceItem>();
