@@ -3,7 +3,7 @@ import { ResourceHandler } from './base.js';
 import type { ResourceItem, ResourceItemStatus, TeamaiConfig, LocalConfig } from '../types.js';
 import { listFilesRecursive, pathExists, copyFile, ensureDir, remove, fileContentEqual, getFileMtime, listDirs } from '../utils/fs.js';
 import { log } from '../utils/logger.js';
-import { TEAMAI_RULES_START, TEAMAI_RULES_END, resolveBaseDir } from '../types.js';
+import { TEAMAI_RULES_START, TEAMAI_RULES_END, LEARNINGS_LOCAL_DIR, resolveBaseDir } from '../types.js';
 import { EXCLUDED_RULE_NAMES } from '../builtin-rules.js';
 import { injectClaudeMdSection } from '../utils/claudemd.js';
 
@@ -237,6 +237,9 @@ export class RulesHandler extends ResourceHandler {
       const docsDir = teamConfig.sharing.docs.localDir;
       if (docsDir) {
         refs.push(`- ${docsDir}/`);
+      }
+      if (await pathExists(LEARNINGS_LOCAL_DIR)) {
+        refs.push('- ~/.teamai/learnings/（团队成员的经验总结，开始任务前建议按文件名查阅是否有相关经验）');
       }
 
       const rulesBlock = [
