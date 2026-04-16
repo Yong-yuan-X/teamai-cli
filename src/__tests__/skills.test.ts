@@ -350,6 +350,48 @@ scope: 'user',
     expect(items.find((item) => item.name === 'blocked-skill')).toBeUndefined();
   });
 
+  it('recognizes root-level flat skills in role mode and does not mark them as new', async () => {
+    localConfig.primaryRole = 'hai';
+    localConfig.additionalRoles = [];
+
+    // Create a root-level flat skill in team repo (has SKILL.md directly)
+    const rootSkillDir = path.join(localConfig.repo.localPath, 'skills', 'autoresearch-skill');
+    await fse.ensureDir(rootSkillDir);
+    await fse.writeFile(path.join(rootSkillDir, 'SKILL.md'), '# Root skill');
+
+    // Create the same skill locally with identical content
+    const localSkillDir = path.join(homeDir, '.claude/skills', 'autoresearch-skill');
+    await fse.ensureDir(localSkillDir);
+    await fse.writeFile(path.join(localSkillDir, 'SKILL.md'), '# Root skill');
+
+    // Should NOT appear in push candidates since local == team repo
+    const items = await handler.scanLocalForPush(teamConfig, localConfig);
+    expect(items.find((item) => item.name === 'autoresearch-skill')).toBeUndefined();
+  });
+
+  it('detects modified root-level flat skill in role mode', async () => {
+    localConfig.primaryRole = 'hai';
+    localConfig.additionalRoles = [];
+
+    // Create a root-level flat skill in team repo
+    const rootSkillDir = path.join(localConfig.repo.localPath, 'skills', 'autoresearch-skill');
+    await fse.ensureDir(rootSkillDir);
+    await fse.writeFile(path.join(rootSkillDir, 'SKILL.md'), '# v1');
+
+    // Create the same skill locally with modified content
+    const localSkillDir = path.join(homeDir, '.claude/skills', 'autoresearch-skill');
+    await fse.ensureDir(localSkillDir);
+    await fse.writeFile(path.join(localSkillDir, 'SKILL.md'), '# v2 — modified locally');
+
+    // Should appear as "modified", not "new"
+    const items = await handler.scanLocalForPush(teamConfig, localConfig);
+    const item = items.find((i) => i.name === 'autoresearch-skill');
+    expect(item).toBeDefined();
+    expect(item!.status).toBe('modified');
+    // Root-level flat skills have no namespace
+    expect(item!.namespace).toBeUndefined();
+  });
+
   it('detects modified skill in namespaced team repo when no primaryRole is set', async () => {
     // No primaryRole — legacy mode
     // Team repo uses namespaced layout: skills/tencent/tgit/SKILL.md

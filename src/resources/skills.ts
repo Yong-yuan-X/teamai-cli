@@ -165,24 +165,39 @@ export class SkillsHandler extends ResourceHandler {
     const blockedSkills = new Set<string>(); // Skills in non-allowed namespaces (role-based)
 
     if (scopedNamespaces.length > 0) {
-      // Role-based mode: load allowed namespaces and track blocked ones
+      // Role-based mode: load allowed namespaces and track blocked ones.
+      // Also recognize root-level flat skills (those with SKILL.md directly inside).
+      const allSkillsDir = path.join(localConfig.repo.localPath, 'skills');
+      const topDirs = await listDirs(allSkillsDir);
+
+      // First pass: identify root-level flat skills (accessible to everyone)
+      for (const dir of topDirs) {
+        const dirPath = path.join(allSkillsDir, dir);
+        const hasSkillMd = await pathExists(path.join(dirPath, 'SKILL.md'));
+        if (hasSkillMd) {
+          // Root-level flat skill — shared across all roles
+          teamSkills.set(dir, { dir: dirPath });
+        }
+      }
+
+      // Second pass: load skills from allowed namespaces
       for (const namespace of scopedNamespaces) {
-        const teamSkillsDir = path.join(localConfig.repo.localPath, 'skills', namespace);
-        const names = await listDirs(teamSkillsDir);
+        const teamSkillsNsDir = path.join(allSkillsDir, namespace);
+        const names = await listDirs(teamSkillsNsDir);
         for (const name of names) {
           if (!teamSkills.has(name)) {
-            teamSkills.set(name, { dir: path.join(teamSkillsDir, name), namespace });
+            teamSkills.set(name, { dir: path.join(teamSkillsNsDir, name), namespace });
           }
         }
       }
 
-      // Scan all namespaces to find skills in non-allowed ones
-      const allSkillsDir = path.join(localConfig.repo.localPath, 'skills');
-      const allNamespaces = await listDirs(allSkillsDir);
-      for (const namespace of allNamespaces) {
-        if (scopedNamespaces.includes(namespace)) continue; // Already processed as allowed
-        const nonAllowedDir = path.join(allSkillsDir, namespace);
-        const names = await listDirs(nonAllowedDir);
+      // Third pass: scan non-allowed namespace directories for blocked skills
+      for (const dir of topDirs) {
+        const dirPath = path.join(allSkillsDir, dir);
+        const hasSkillMd = await pathExists(path.join(dirPath, 'SKILL.md'));
+        if (hasSkillMd) continue; // Already handled as root-level flat skill
+        if (scopedNamespaces.includes(dir)) continue; // Already processed as allowed namespace
+        const names = await listDirs(dirPath);
         for (const name of names) {
           if (!teamSkills.has(name)) {
             blockedSkills.add(name);
