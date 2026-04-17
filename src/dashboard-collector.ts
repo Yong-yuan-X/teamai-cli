@@ -391,11 +391,17 @@ export function rebuildSessions(events: DashboardEvent[]): DashboardSession[] {
     result.push(session);
   }
 
-  // Sort: active sessions first (by lastActivity desc), stopped sessions last
+  // Sort: active sessions first, stopped last; within each group by total runtime descending
   result.sort((a, b) => {
     if (a.status === 'stopped' && b.status !== 'stopped') return 1;
     if (a.status !== 'stopped' && b.status === 'stopped') return -1;
-    return b.lastActivity.localeCompare(a.lastActivity);
+    // Sort by total runtime descending (longest-running first) for stable card positions
+    const sortNow = Date.now();
+    const aEnd = a.stoppedAt ? new Date(a.stoppedAt).getTime() : sortNow;
+    const bEnd = b.stoppedAt ? new Date(b.stoppedAt).getTime() : sortNow;
+    const aRuntime = aEnd - new Date(a.startedAt).getTime();
+    const bRuntime = bEnd - new Date(b.startedAt).getTime();
+    return bRuntime - aRuntime;
   });
   return result;
 }

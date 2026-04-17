@@ -463,15 +463,17 @@ describe('rebuildSessions', () => {
     expect(s2!.cwd).toBe('/proj-b');
   });
 
-  it('sorts by lastActivity descending', () => {
-    const t1 = new Date(Date.now() - 60000).toISOString();
-    const t2 = new Date().toISOString();
+  it('sorts by total runtime descending', () => {
+    // s1 started 5 min ago (longer runtime), s2 started 1 min ago (shorter runtime)
+    const t1 = new Date(Date.now() - 5 * 60000).toISOString();
+    const t2 = new Date(Date.now() - 60000).toISOString();
     const events: DashboardEvent[] = [
       { type: 'session_start', timestamp: t1, sessionId: 's1', tool: 'claude', cwd: '/proj-a' },
       { type: 'session_start', timestamp: t2, sessionId: 's2', tool: 'claude', cwd: '/proj-b' },
     ];
     const sessions = rebuildSessions(events);
-    expect(sessions[0].sessionId).toBe('s2');
+    // s1 has longer total runtime, should come first
+    expect(sessions[0].sessionId).toBe('s1');
   });
 });
 
