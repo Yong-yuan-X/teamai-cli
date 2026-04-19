@@ -1,5 +1,5 @@
 import { autoDetectInit, loadStateForScope, saveStateForScope } from './config.js';
-import { createGit, pullRepo, pushRepoBranch, checkoutMaster, generateBranchName, resetToCleanMaster } from './utils/git.js';
+import { createGit, pullRepo, pushRepoBranch, checkoutMaster, generateBranchName, resetToCleanMaster, getDefaultBranch } from './utils/git.js';
 import { syncTeamUpdatesToLocal } from './utils/pre-push-sync.js';
 import { getProvider } from './providers/index.js';
 import { log, spinner } from './utils/logger.js';
@@ -53,10 +53,11 @@ async function createPrWithFallback(
       repoInfo = provider.parseRepoInput(localConfig.repo.remote);
     }
 
-    const prUrl = provider.createPullRequest({
+    const targetBranch = await getDefaultBranch(localConfig.repo.localPath);
+    const prUrl = await provider.createPullRequest({
       repo: `${repoInfo.owner}/${repoInfo.repo}`,
       source: branchName,
-      target: 'master',
+      target: targetBranch,
       title,
       description,
       reviewers: teamConfig.reviewers?.length ? teamConfig.reviewers : undefined,
@@ -78,19 +79,19 @@ export async function push(options: GlobalOptions & { all?: boolean; role?: stri
   const { localConfig, teamConfig } = await autoDetectInit();
   const scopeLabel = localConfig.scope;
 
-  // Pull latest master BEFORE scanning so detection runs against up-to-date repo.
+  // Pull latest default branch BEFORE scanning so detection runs against up-to-date repo.
   // The team repo may be in various broken states from previous failed pushes:
   //   - Unmerged (conflicted) files without MERGE_HEAD (incomplete merge)
   //   - Stuck on a stale push branch instead of master
   //   - Uncommitted changes (e.g. votes written by autoUpvote)
   // We recover from all of these before pulling.
-  const pullSpin = spinner('Pulling latest master...').start();
+  const pullSpin = spinner('Pulling latest changes...').start();
   try {
     const repoPath = localConfig.repo.localPath;
     const git = createGit(repoPath);
-    await resetToCleanMaster(git);
+    await resetToCleanMaster(git, repoPath);
     await pullRepo(repoPath);
-    pullSpin.succeed('Master up to date');
+    pullSpin.succeed('Up to date');
   } catch (e) {
     pullSpin.warn(`Pull failed: ${(e as Error).message}`);
   }

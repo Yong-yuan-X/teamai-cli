@@ -23,10 +23,10 @@ function parseNamespaces(input: string): string[] {
 // ─── Shared: pull latest + push branch + PR ──────────────
 
 async function pullLatest(repoPath: string): Promise<void> {
-    const pullSpin = spinner('Pulling latest master...').start();
+    const pullSpin = spinner('Pulling latest changes...').start();
     try {
         await pullRepo(repoPath);
-        pullSpin.succeed('Master up to date');
+        pullSpin.succeed('Up to date');
     } catch (e) {
         pullSpin.warn(`Pull failed: ${(e as Error).message}`);
     }

@@ -1,47 +1,45 @@
 import type { GitProvider, PrCreateOptions, RepoInfo } from '../types.js';
 import { RepoNotFoundError } from '../types.js';
 import {
-  ensureGfInstalled,
-  gfIsAuthenticated,
-  gfAuthWhoami,
-  ensureAuthenticated,
-  gfRepoClone,
-  gfCreateRepo,
-  gfMrCreate,
-  gfGetOAuthToken,
-  RepoNotFoundError as GfRepoNotFoundError,
-} from './gf-cli.js';
-import { parseTGitRepoInput } from './repo-url.js';
-import { log } from '../../utils/logger.js';
+  ensureGhAvailable,
+  ghIsAuthenticated,
+  ghAuthWhoami,
+  ensureGhAuthenticated,
+  ghRepoClone,
+  ghCreateRepo,
+  ghPrCreate,
+  RepoNotFoundError as GhRepoNotFoundError,
+} from './gh-cli.js';
+import { parseGitHubRepoInput } from './repo-url.js';
 
-export class TGitProvider implements GitProvider {
-  readonly name = 'tgit';
+export class GitHubProvider implements GitProvider {
+  readonly name = 'github';
 
   parseRepoInput(input: string): RepoInfo {
-    return parseTGitRepoInput(input);
+    return parseGitHubRepoInput(input);
   }
 
   isAuthenticated(): boolean {
-    return gfIsAuthenticated();
+    return ghIsAuthenticated();
   }
 
   async authenticate(): Promise<string> {
     if (this.isAuthenticated()) {
-      const username = gfAuthWhoami();
+      const username = await ghAuthWhoami();
       if (username) return username;
     }
-    return ensureAuthenticated();
+    return ensureGhAuthenticated();
   }
 
   async ensureInstalled(): Promise<void> {
-    await ensureGfInstalled();
+    await ensureGhAvailable();
   }
 
   cloneRepo(repo: string, localPath: string): void {
     try {
-      gfRepoClone(repo, localPath);
+      ghRepoClone(repo, localPath);
     } catch (e) {
-      if (e instanceof GfRepoNotFoundError) {
+      if (e instanceof GhRepoNotFoundError) {
         throw new RepoNotFoundError(repo);
       }
       throw e;
@@ -49,11 +47,11 @@ export class TGitProvider implements GitProvider {
   }
 
   async createRepo(owner: string, repo: string): Promise<void> {
-    await gfCreateRepo(owner, repo);
+    await ghCreateRepo(owner, repo);
   }
 
   async createPullRequest(opts: PrCreateOptions): Promise<string> {
-    return gfMrCreate({
+    return ghPrCreate({
       repo: opts.repo,
       source: opts.source,
       target: opts.target,
@@ -65,9 +63,12 @@ export class TGitProvider implements GitProvider {
   }
 
   getDefaultEmailDomain(): string | null {
-    return 'tencent.com';
+    return null;
   }
 }
 
-// Re-export commonly used items for backward compatibility
-export { gfIsAuthenticated, gfGetOAuthToken, isGfInstalled } from './gf-cli.js';
+export {
+  ghIsAuthenticated,
+  ghGetOAuthToken,
+  isGhInstalled,
+} from './gh-cli.js';

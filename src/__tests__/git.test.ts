@@ -96,6 +96,12 @@ describe('pushRepoBranch', () => {
 
   it('should return false and clean up branch when no changes to commit', async () => {
     mockGit.status.mockResolvedValue({ staged: [] });
+    // Mock origin/HEAD lookup so default-branch detection resolves to 'master'
+    mockGit.revparse.mockImplementation(async (args: any) => {
+      const a = Array.isArray(args) ? args : [args];
+      if (a[0] === '--abbrev-ref' && a[1] === 'origin/HEAD') return 'origin/master';
+      return '';
+    });
 
     const result = await pushRepoBranch('/repo', 'msg', ['file.txt'], 'teamai/push/test/456');
 
@@ -112,9 +118,24 @@ describe('checkoutMaster', () => {
     vi.clearAllMocks();
   });
 
-  it('should checkout master branch', async () => {
-    await checkoutMaster('/repo');
+  it('should checkout the default branch (master when origin/HEAD points there)', async () => {
+    mockGit.revparse.mockImplementation(async (args: any) => {
+      const a = Array.isArray(args) ? args : [args];
+      if (a[0] === '--abbrev-ref' && a[1] === 'origin/HEAD') return 'origin/master';
+      return '';
+    });
+    await checkoutMaster('/repo-master');
     expect(mockGit.checkout).toHaveBeenCalledWith('master');
+  });
+
+  it('should checkout the default branch (main when origin/HEAD points there)', async () => {
+    mockGit.revparse.mockImplementation(async (args: any) => {
+      const a = Array.isArray(args) ? args : [args];
+      if (a[0] === '--abbrev-ref' && a[1] === 'origin/HEAD') return 'origin/main';
+      return '';
+    });
+    await checkoutMaster('/repo-main');
+    expect(mockGit.checkout).toHaveBeenCalledWith('main');
   });
 });
 
@@ -207,6 +228,21 @@ describe('resetToCleanMaster', () => {
     vi.clearAllMocks();
   });
 
+  /**
+   * Build an argument-aware revparse mock.
+   * - origin/HEAD → returns the configured `originHead` (e.g. 'origin/master')
+   * - --abbrev-ref HEAD → returns the configured `currentBranch`
+   * - other revparse calls → resolve with empty string
+   */
+  function mockRevparse(originHead: string, currentBranch: string) {
+    mockGit.revparse.mockImplementation(async (args: any) => {
+      const a = Array.isArray(args) ? args : [args];
+      if (a[0] === '--abbrev-ref' && a[1] === 'origin/HEAD') return originHead;
+      if (a[0] === '--abbrev-ref' && a[1] === 'HEAD') return currentBranch;
+      return '';
+    });
+  }
+
   it('should do nothing when repo is clean and on master', async () => {
     mockGit.status.mockResolvedValue({
       modified: [],
@@ -214,7 +250,7 @@ describe('resetToCleanMaster', () => {
       created: [],
       conflicted: [],
     });
-    mockGit.revparse.mockResolvedValue('master');
+    mockRevparse('origin/master', 'master');
 
     await resetToCleanMaster(mockGit as any);
 
@@ -229,7 +265,7 @@ describe('resetToCleanMaster', () => {
       created: [],
       conflicted: ['votes/jeffyxu.yaml'],
     });
-    mockGit.revparse.mockResolvedValue('master');
+    mockRevparse('origin/master', 'master');
 
     await resetToCleanMaster(mockGit as any);
 
@@ -244,7 +280,7 @@ describe('resetToCleanMaster', () => {
       created: [],
       conflicted: [],
     });
-    mockGit.revparse.mockResolvedValue('master');
+    mockRevparse('origin/master', 'master');
 
     await resetToCleanMaster(mockGit as any);
 
@@ -258,7 +294,7 @@ describe('resetToCleanMaster', () => {
       created: [],
       conflicted: [],
     });
-    mockGit.revparse.mockResolvedValue('teamai/push/jeffyxu/20260411-225746');
+    mockRevparse('origin/master', 'teamai/push/jeffyxu/20260411-225746');
 
     await resetToCleanMaster(mockGit as any);
 
@@ -272,11 +308,25 @@ describe('resetToCleanMaster', () => {
       created: ['new-file.txt'],
       conflicted: ['votes/user.yaml'],
     });
-    mockGit.revparse.mockResolvedValue('teamai/push/user/20260411-123456');
+    mockRevparse('origin/master', 'teamai/push/user/20260411-123456');
 
     await resetToCleanMaster(mockGit as any);
 
     expect(mockGit.reset).toHaveBeenCalledWith(['--hard', 'HEAD']);
     expect(mockGit.checkout).toHaveBeenCalledWith('master');
+  });
+
+  it('should checkout main when default branch is main', async () => {
+    mockGit.status.mockResolvedValue({
+      modified: [],
+      not_added: [],
+      created: [],
+      conflicted: [],
+    });
+    mockRevparse('origin/main', 'feature/foo');
+
+    await resetToCleanMaster(mockGit as any);
+
+    expect(mockGit.checkout).toHaveBeenCalledWith('main');
   });
 });

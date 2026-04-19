@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { loadLocalConfig, loadTeamConfig } from './config.js';
+import { detectProjectConfig, loadLocalConfig, loadTeamConfig } from './config.js';
 import { pathExists, readFileSafe } from './utils/fs.js';
 import { log } from './utils/logger.js';
 import type { GlobalOptions } from './types.js';
@@ -42,7 +42,11 @@ function buildHookChecks(toolPaths: TeamaiConfig['toolPaths']): Check[] {
 
 export async function doctor(options: GlobalOptions): Promise<void> {
   log.info('Running diagnostics...\n');
-  const localConfig = await loadLocalConfig();
+  const projectConfig = await detectProjectConfig();
+  const localConfig = projectConfig ?? (await loadLocalConfig());
+  const configPathLabel = projectConfig
+    ? `${projectConfig.projectRoot}/.teamai/config.yaml`
+    : '~/.teamai/config.yaml';
 
   // Try to load team config for dynamic tool paths and provider
   let teamConfig: TeamaiConfig | null = null;
@@ -75,7 +79,7 @@ export async function doctor(options: GlobalOptions): Promise<void> {
 
   checks.push(
     {
-      name: 'Local config exists (~/.teamai/config.yaml)',
+      name: `Local config exists (${configPathLabel})`,
       check: async () => localConfig !== null,
       fix: 'Run `teamai init` to initialize',
     },

@@ -2,7 +2,12 @@
 
 ## Project Overview
 
-TeamAI CLI (`@tencent/teamai-cli`) — a CLI tool for syncing team skills, rules, docs, and env variables across Claude Code users.
+TeamAI CLI — a CLI tool for syncing team skills, rules, docs, and env variables across AI coding tools (Claude Code, Cursor, Codex, CodeBuddy).
+
+Published as two packages with identical code:
+
+- **Public**: `teamai-cli` on [npmjs.org](https://www.npmjs.com/package/teamai-cli) — for open-source users
+- **Internal mirror**: `@tencent/teamai-cli` on tnpm — for Tencent internal teams
 
 ## Tech Stack
 
@@ -10,9 +15,9 @@ TeamAI CLI (`@tencent/teamai-cli`) — a CLI tool for syncing team skills, rules
 - **Runtime**: Node.js 20+
 - **Build**: tsup (ESM output)
 - **Test**: Vitest
-- **Package Registry**: tnpm (http://r.tnpm.oa.com)
-- **CI**: Coding CI (`.coding-ci.yaml`)
-- **Git Hosting**: TGit (git.woa.com)
+- **Package Registry**: public npm + tnpm mirror (see publish process below)
+- **CI**: GitHub Actions (`.github/workflows/`) + Coding CI (`.coding-ci.yaml`) for internal tnpm
+- **Git Hosting**: GitHub (primary) + TGit (`git.woa.com`) via provider abstraction
 
 ## Common Commands
 
@@ -25,7 +30,10 @@ npx vitest run --coverage  # Run tests with coverage
 
 ## Release Process
 
-Publish is triggered by **tag push** via CI pipeline (not by pushing to master).
+Publish is triggered by **tag push**. Two pipelines run in parallel:
+
+- **GitHub Actions** (`.github/workflows/release.yml`): publishes `teamai-cli` to public npm
+- **Coding CI** (`.coding-ci.yaml`): renames to `@tencent/teamai-cli` at build time and publishes to tnpm
 
 ```bash
 # 1. Bump version (auto: modify package.json + git commit + git tag)
@@ -33,11 +41,11 @@ npm version patch      # bug fix / small change
 npm version minor      # new feature, backward compatible
 npm version major      # breaking change
 
-# 2. Push code and tag together — CI auto-publishes to tnpm
+# 2. Push code and tag together — CI auto-publishes both packages
 git push origin master --tags
 ```
 
-CI pipeline stages: validate (lint + test) -> build -> e2e -> publish (tag builds only).
+CI stages: validate (lint + test) -> build -> e2e -> publish (tag builds only).
 
 ## Workflow Rules
 

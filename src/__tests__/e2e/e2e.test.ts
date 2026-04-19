@@ -299,15 +299,21 @@ describe('remote commands', () => {
       const repoPath = path.join(teamaiHome, 'team-repo');
       fs.mkdirSync(teamaiHome, { recursive: true });
 
-      // Clone the repo back (uninstall removed it)
+      // Clone the repo back (uninstall removed it).
+      // Supports both GitHub (via TEAMAI_TEST_PROVIDER=github) and TGit (default).
       const { execSync } = await import('node:child_process');
+      const provider = (process.env.TEAMAI_TEST_PROVIDER ?? 'tgit').toLowerCase();
+      const defaultHost = provider === 'github' ? 'github.com' : 'git.woa.com';
       const cloneUrl = testRepoUrl.startsWith('http')
         ? testRepoUrl
-        : `https://git.woa.com/${testRepoUrl}.git`;
-      execSync(
-        `git clone -c "http.extraHeader=PRIVATE-TOKEN: ${process.env.TEAMAI_TEST_TOKEN}" "${cloneUrl}" "${repoPath}"`,
-        { stdio: 'pipe' },
-      );
+        : `https://${defaultHost}/${testRepoUrl}.git`;
+
+      const cloneCmd =
+        provider === 'github'
+          ? `git clone "https://x-access-token:${process.env.TEAMAI_TEST_TOKEN}@${cloneUrl.replace(/^https?:\/\//, '')}" "${repoPath}"`
+          : `git clone -c "http.extraHeader=PRIVATE-TOKEN: ${process.env.TEAMAI_TEST_TOKEN}" "${cloneUrl}" "${repoPath}"`;
+
+      execSync(cloneCmd, { stdio: 'pipe' });
 
       fs.writeFileSync(
         path.join(teamaiHome, 'config.yaml'),

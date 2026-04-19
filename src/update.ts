@@ -9,8 +9,11 @@ import { askConfirmation } from './utils/prompt.js';
 
 // ─── Constants ──────────────────────────────────────────
 
-const REGISTRY = 'http://r.tnpm.oa.com';
-const PACKAGE_NAME = '@tencent/teamai-cli';
+/** Public npm registry (open-source users). */
+const PUBLIC_REGISTRY = 'https://registry.npmjs.org';
+/** Tencent internal tnpm registry (for @tencent/ scoped package). */
+const TNPM_REGISTRY = 'http://r.tnpm.oa.com';
+
 const VERSION_CHECK_TIMEOUT = 5000;
 const INSTALL_TIMEOUT = 60000;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -27,16 +30,43 @@ export function getCurrentVersion(): string {
 }
 
 /**
+ * Get the currently installed package name from package.json.
+ * Used to decide which registry to query (public npm vs tnpm).
+ */
+export function getCurrentPackageName(): string {
+  const require = createRequire(import.meta.url);
+  const { name } = require('../package.json');
+  return name as string;
+}
+
+/**
+ * Resolve the npm registry to use for the given package name.
+ * Scoped packages under `@tencent/` go to tnpm; everything else to public npm.
+ * Honor `TEAMAI_NPM_REGISTRY` env var for manual override (useful for testing
+ * or private mirrors).
+ */
+export function resolveRegistryForPackage(pkgName: string): string {
+  const override = process.env.TEAMAI_NPM_REGISTRY?.trim();
+  if (override) return override;
+  if (pkgName.startsWith('@tencent/')) return TNPM_REGISTRY;
+  return PUBLIC_REGISTRY;
+}
+
+/**
  * Fetch the latest version from the npm registry
  * Returns null on any error (timeout, network, etc.)
+ *
+ * Defaults to the registry resolved from the currently installed package name.
  */
 export async function fetchLatestVersion(
-  registry: string = REGISTRY,
+  registry?: string,
   timeout: number = VERSION_CHECK_TIMEOUT,
 ): Promise<string | null> {
+  const pkgName = getCurrentPackageName();
+  const resolvedRegistry = registry ?? resolveRegistryForPackage(pkgName);
   try {
     const output = execSync(
-      `npm view ${PACKAGE_NAME} version --registry=${registry}`,
+      `npm view ${pkgName} version --registry=${resolvedRegistry}`,
       { timeout, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
     );
     const version = output.trim();
@@ -207,8 +237,10 @@ export async function doUpdate(): Promise<void> {
   }
 
   try {
+    const pkgName = getCurrentPackageName();
+    const registry = resolveRegistryForPackage(pkgName);
     execSync(
-      `npm install -g ${PACKAGE_NAME} --registry=${REGISTRY}`,
+      `npm install -g ${pkgName} --registry=${registry}`,
       { timeout: INSTALL_TIMEOUT, stdio: 'pipe' },
     );
     log.success(`Updated teamai to v${result.latest}`);

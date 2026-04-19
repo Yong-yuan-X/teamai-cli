@@ -74,6 +74,49 @@ export async function pullRepo(localPath: string): Promise<string> {
 }
 
 /**
+ * Detect the default branch of a repo. Tries in order:
+ *   1. origin/HEAD symbolic ref (set by clone or `git remote set-head -a`)
+ *   2. origin/main (modern default)
+ *   3. origin/master (legacy default)
+ *   4. Falls back to 'main'
+ *
+ * Result is cached per-repo for the process lifetime to avoid repeated git calls.
+ */
+const defaultBranchCache = new Map<string, string>();
+export async function getDefaultBranch(localPath: string): Promise<string> {
+  const cached = defaultBranchCache.get(localPath);
+  if (cached) return cached;
+
+  const git = createGit(localPath);
+  let branch: string | null = null;
+
+  try {
+    const ref = (await git.revparse(['--abbrev-ref', 'origin/HEAD'])).trim();
+    if (ref.startsWith('origin/')) {
+      branch = ref.slice('origin/'.length);
+    }
+  } catch {
+    // origin/HEAD not set; fall through
+  }
+
+  if (!branch) {
+    for (const candidate of ['main', 'master']) {
+      try {
+        await git.revparse([`origin/${candidate}`]);
+        branch = candidate;
+        break;
+      } catch {
+        // not found; try next
+      }
+    }
+  }
+
+  branch = branch ?? 'main';
+  defaultBranchCache.set(localPath, branch);
+  return branch;
+}
+
+/**
  * Push directly to the current branch (master). Used only during init for first-time setup.
  */
 export async function pushRepoDirectly(localPath: string, message: string, files: string[]): Promise<void> {
@@ -122,8 +165,9 @@ export async function pushRepoBranch(
   await git.add(files);
   const status = await git.status();
   if (status.staged.length === 0) {
-    log.debug('Nothing to commit, switching back to master');
-    await git.checkout('master');
+    const defaultBranch = await getDefaultBranch(localPath);
+    log.debug(`Nothing to commit, switching back to ${defaultBranch}`);
+    await git.checkout(defaultBranch);
     await git.deleteLocalBranch(branchName, true);
     return false;
   }
@@ -136,11 +180,13 @@ export async function pushRepoBranch(
 }
 
 /**
- * Switch the repo back to master. Used after pushRepoBranch + createPullRequest.
+ * Switch the repo back to its default branch (main/master).
+ * Used after pushRepoBranch + createPullRequest.
  */
 export async function checkoutMaster(localPath: string): Promise<void> {
   const git = createGit(localPath);
-  await git.checkout('master');
+  const defaultBranch = await getDefaultBranch(localPath);
+  await git.checkout(defaultBranch);
 }
 
 /**
@@ -154,7 +200,7 @@ export function generateBranchName(username: string): string {
 }
 
 /**
- * Reset the team repo to a clean master state.
+ * Reset the team repo to a clean default-branch state.
  *
  * The team repo is a local cache — any uncommitted or conflicted state is
  * safe to discard. This handles multiple failure modes:
@@ -164,10 +210,10 @@ export function generateBranchName(username: string): string {
  *     so we use `git reset --hard HEAD`.
  *  2. Active merge with MERGE_HEAD — `merge --abort` works, but
  *     `reset --hard` handles this too.
- *  3. Stuck on a stale push branch — switch back to master.
+ *  3. Stuck on a stale push branch — switch back to the default branch.
  *  4. Uncommitted modifications — reset discards them.
  */
-export async function resetToCleanMaster(git: SimpleGit): Promise<void> {
+export async function resetToCleanMaster(git: SimpleGit, localPath?: string): Promise<void> {
   const status = await git.status();
   const hasConflicts = status.conflicted.length > 0;
   const isDirty = hasConflicts
@@ -183,11 +229,23 @@ export async function resetToCleanMaster(git: SimpleGit): Promise<void> {
     await git.reset(['--hard', 'HEAD']);
   }
 
-  // Ensure we're on master (previous push may have left us on a feature branch)
+  // Ensure we're on the default branch (previous push may have left us on a feature branch)
   const branch = (await git.revparse(['--abbrev-ref', 'HEAD'])).trim();
-  if (branch !== 'master') {
-    log.debug(`Switching from stale branch '${branch}' back to master`);
-    await git.checkout('master');
+  // Resolve default branch from localPath if given, otherwise infer from origin/HEAD via git
+  let defaultBranch = 'main';
+  if (localPath) {
+    defaultBranch = await getDefaultBranch(localPath);
+  } else {
+    try {
+      const ref = (await git.revparse(['--abbrev-ref', 'origin/HEAD'])).trim();
+      if (ref.startsWith('origin/')) defaultBranch = ref.slice('origin/'.length);
+    } catch {
+      // origin/HEAD not set; use 'main' as best guess
+    }
+  }
+  if (branch !== defaultBranch) {
+    log.debug(`Switching from stale branch '${branch}' back to ${defaultBranch}`);
+    await git.checkout(defaultBranch);
   }
 }
 

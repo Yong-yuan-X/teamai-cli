@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 vi.mock('../config.js', () => ({
     loadLocalConfig: vi.fn(),
     loadTeamConfig: vi.fn(),
+    detectProjectConfig: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock('../utils/fs.js', () => ({

@@ -84,8 +84,11 @@ export interface GitProvider {
   /**
    * Create a pull request (GitHub) or merge request (TGit/GitLab).
    * Returns the PR/MR web URL on success.
+   *
+   * Async because some providers (e.g. GitHub) use REST API calls internally.
+   * Providers that only shell out to a CLI may return a resolved promise.
    */
-  createPullRequest(opts: PrCreateOptions): string;
+  createPullRequest(opts: PrCreateOptions): Promise<string>;
 
   // ─── Utilities ────────────────────────────────────────
 

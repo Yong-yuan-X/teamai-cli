@@ -1,20 +1,20 @@
 {
-  "name": "@tencent/teamai-cli",
+  "name": "teamai-cli",
   "version": "0.14.4",
-  "description": "TeamAI — 团队 AI 经验共享框架",
+  "description": "TeamAI — team AI experience sharing framework (skills, rules, docs, env sync across Claude Code, Cursor, Codex, etc.)",
   "type": "module",
   "bin": {
     "teamai": "./dist/index.js"
   },
   "files": [
-    "dist",
+    "dist/**/*.js",
     "skills",
     "README.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "publishConfig": {
-    "access": "public",
-    "registry": "http://r.tnpm.oa.com"
+    "access": "public"
   },
   "scripts": {
     "build": "tsup",
@@ -29,7 +29,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://git.woa.com/teamai/teamai-cli.git"
+    "url": "https://github.com/Tencent/teamai-cli.git"
+  },
+  "homepage": "https://github.com/Tencent/teamai-cli#readme",
+  "bugs": {
+    "url": "https://github.com/Tencent/teamai-cli/issues"
   },
   "keywords": [
     "ai",
@@ -38,7 +42,7 @@
     "skills",
     "sharing"
   ],
-  "author": "jeffyxu",
+  "author": "jeffyxu <jeffyxu@tencent.com>",
   "license": "MIT",
   "dependencies": {
     "chalk": "^5.3.0",

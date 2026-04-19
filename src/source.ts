@@ -3,6 +3,7 @@ import fse from 'fs-extra';
 import YAML from 'yaml';
 import { loadTeamConfig, autoDetectInit } from './config.js';
 import { createGit, pullRepo } from './utils/git.js';
+import { detectProvider, getProvider } from './providers/index.js';
 import { log, spinner } from './utils/logger.js';
 import {
   pathExists,
@@ -83,12 +84,16 @@ async function ensureSourceRepo(source: SourceConfig, force: boolean): Promise<s
     }
   }
 
-  // First time: clone
+  // First time: clone via provider so private repos get an auth token
   try {
     await ensureDir(path.dirname(repoDir));
-    const git = createGit();
     const cloneSpin = spinner(`[source:${source.name}] Cloning...`).start();
-    await git.clone(source.repo, repoDir, ['--depth', '1']);
+
+    const providerName = detectProvider(source.repo);
+    const provider = getProvider(providerName);
+    const repoInfo = provider.parseRepoInput(source.repo);
+    provider.cloneRepo(`${repoInfo.owner}/${repoInfo.repo}`, repoDir);
+
     cloneSpin.succeed(`[source:${source.name}] Cloned`);
     return repoDir;
   } catch (e) {
@@ -422,19 +427,21 @@ async function pullSingleSource(
 
 /**
  * Derive a source name from a git remote URL.
- * e.g. "git@git.woa.com:platform/ai-skills.git" → "platform"
- * e.g. "https://git.woa.com/sglang/teamai-repo.git" → "sglang"
+ * Works for any host (github.com, git.woa.com, gitlab.com, etc.):
+ *   - "git@github.com:teamai/skills.git"      → "teamai"
+ *   - "https://github.com/teamai/skills.git"  → "teamai"
+ *   - "git@git.woa.com:platform/skills.git"   → "platform"
  */
 function deriveSourceName(repoUrl: string): string | null {
-  // SSH format: git@host:owner/repo.git
+  // SSH format: git@host:owner/repo.git (or git@host:group/sub/repo.git)
   const sshMatch = repoUrl.match(/:([^/]+)\//);
   if (sshMatch) return sshMatch[1];
 
-  // HTTPS format: https://host/owner/repo.git
-  const httpsMatch = repoUrl.match(/\/([^/]+)\/[^/]+\.git$/);
+  // HTTPS format: https://host/owner/repo(.git)?
+  const httpsMatch = repoUrl.match(/\/\/[^/]+\/([^/]+)\/[^/]+?(?:\.git)?\/?$/);
   if (httpsMatch) return httpsMatch[1];
 
-  // Fallback: try to find something after the last /
+  // Fallback: penultimate segment of the URL, stripping .git
   const parts = repoUrl.replace(/\.git$/, '').split('/');
   if (parts.length >= 2) return parts[parts.length - 2];
 

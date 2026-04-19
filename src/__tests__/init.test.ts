@@ -242,7 +242,7 @@ describe('init', () => {
 
       questionAnswers = ['n'];
 
-      await init({ repo: 'HyperAI/teamai-test', scope: 'user' });
+      await init({ repo: 'https://git.woa.com/HyperAI/teamai-test.git', scope: 'user' });
 
       expect(mockGfRepoClone).toHaveBeenCalledWith('HyperAI/teamai-test', localPath);
       expect(mockGit.init).toHaveBeenCalled();
@@ -265,7 +265,7 @@ describe('init', () => {
 
       questionAnswers = ['n'];
 
-      await init({ repo: 'HyperAI/existing-repo', scope: 'user' });
+      await init({ repo: 'https://git.woa.com/HyperAI/existing-repo.git', scope: 'user' });
 
       expect(mockGfRepoClone).toHaveBeenCalled();
       expect(mockGit.init).not.toHaveBeenCalled();
@@ -298,7 +298,7 @@ describe('init', () => {
       // Answers: create repo confirm (Y), configure reviewers (n), primary role (1), no additional roles
       questionAnswers = ['Y', 'n', '1', ''];
 
-      await init({ repo: 'HyperAI/new-repo', scope: 'user' });
+      await init({ repo: 'https://git.woa.com/HyperAI/new-repo.git', scope: 'user' });
 
       expect(mockGfCreateRepo).toHaveBeenCalledWith('HyperAI', 'new-repo');
       expect(mockGfRepoClone).toHaveBeenCalledTimes(2);
@@ -315,7 +315,7 @@ describe('init', () => {
       // Answers: decline creation (n)
       questionAnswers = ['n'];
 
-      await init({ repo: 'HyperAI/new-repo', scope: 'user' });
+      await init({ repo: 'https://git.woa.com/HyperAI/new-repo.git', scope: 'user' });
 
       // process.exit(1) should be called when user declines
       expect(mockExit).toHaveBeenCalledWith(1);
@@ -333,7 +333,7 @@ describe('init', () => {
       // Answers: confirm creation (Y)
       questionAnswers = ['Y'];
 
-      await init({ repo: 'HyperAI/new-repo', scope: 'user' });
+      await init({ repo: 'https://git.woa.com/HyperAI/new-repo.git', scope: 'user' });
 
       expect(mockGfCreateRepo).toHaveBeenCalledWith('HyperAI', 'new-repo');
       expect(mockExit).toHaveBeenCalledWith(1);
@@ -350,7 +350,7 @@ describe('init', () => {
 
       questionAnswers = [];
 
-      await init({ repo: 'HyperAI/broken-repo', scope: 'user' });
+      await init({ repo: 'https://git.woa.com/HyperAI/broken-repo.git', scope: 'user' });
 
       expect(mockExit).toHaveBeenCalledWith(1);
       expect(mockGfCreateRepo).not.toHaveBeenCalled();
@@ -401,7 +401,7 @@ describe('init', () => {
 
       questionAnswers = ['n', '1', '1'];
 
-      await init({ repo: 'HyperAI/teamai-test', scope: 'user' });
+      await init({ repo: 'https://git.woa.com/HyperAI/teamai-test.git', scope: 'user' });
 
       expect(saveLocalConfig).toHaveBeenCalledWith(expect.objectContaining({
         primaryRole: 'hai',

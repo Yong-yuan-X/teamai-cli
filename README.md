@@ -2,14 +2,29 @@
 
 团队 AI 经验共享框架。自动在团队成员之间同步 skills、rules、docs 等 AI 工具配置。
 
-> 📖 **完整使用指南**：[docs/usage-guide.md](docs/usage-guide.md) — 涵盖从团队创建到日常使用的全流程。
+支持的 AI 工具：Claude Code、Codex、Cursor、CodeBuddy IDE（及各自的 Internal 版本）。
+支持的 git 托管平台：**GitHub**（默认）、腾讯工蜂 TGit（`git.woa.com`）。
 
-## 如有问题或建议，欢迎提交 PR 或 Issue，一起共建这个项目
+> 📖 **完整使用指南**：[docs/usage-guide.md](docs/usage-guide.md) — 涵盖从团队创建到日常使用的全流程。
+> 📚 **Provider 说明**：[docs/providers.md](docs/providers.md) — GitHub / TGit 差异与认证配置。
+
+如有问题或建议，欢迎提交 PR 或 Issue，一起共建这个项目。
+
 ## 安装
+
+```bash
+npm install -g teamai-cli
+```
+
+<details>
+<summary>腾讯内部用户：通过 tnpm 安装 <code>@tencent/teamai-cli</code></summary>
 
 ```bash
 npm install -g @tencent/teamai-cli --registry=http://r.tnpm.oa.com
 ```
+
+两个包的代码内容一致，`@tencent/teamai-cli` 只是公网 `teamai-cli` 的内网镜像。
+</details>
 
 ## 快速开始
 
@@ -29,7 +44,15 @@ teamai init --repo yourteam/yourproject --scope user --role hai_dev --force
 
 ### 管理员
 
-需要先在 git.woa.com 上创建好团队共享经验的仓库，并把所有团队的成员都加入到 master(可通过 user group 快捷添加)
+先在 git 托管平台上创建好团队共享经验的仓库（默认 GitHub；TGit 也支持），并把所有团队成员加入到该仓库的 write 权限。
+
+- **GitHub**：用 `gh repo create yourorg/yourproject --private` 创建，或在 UI 上建。然后用 Settings → Collaborators 把成员加进来，并把 master/main 设置为默认分支。
+- **TGit（腾讯工蜂）**：在 [git.woa.com](https://git.woa.com/) 上创建，通过 user group 批量添加 master 权限。
+
+CLI 会根据用户传入的 repo URL 自动选择 provider：
+
+- `yourorg/yourrepo` 或 `https://github.com/yourorg/yourrepo` → GitHub
+- `https://git.woa.com/yourteam/yourrepo` → TGit
 
 ## 命令
 
@@ -264,5 +287,21 @@ Author: alice | Score: 12.0 | Tags: fuse, deploy
 ## 更新
 
 ```bash
-npm update -g @tencent/teamai-cli --registry=http://r.tnpm.oa.com
+teamai update        # 自动检测并升级到最新版
+npm update -g teamai-cli   # 或手动触发 npm 升级
 ```
+
+`teamai update` 会根据当前安装的包名自动选择 registry：
+
+- `teamai-cli` → 公网 npm (`https://registry.npmjs.org`)
+- `@tencent/teamai-cli` → 内网 tnpm (`http://r.tnpm.oa.com`)
+
+如需手动覆盖 registry，可以设置环境变量 `TEAMAI_NPM_REGISTRY=<url>`。
+
+## 许可证
+
+[MIT](LICENSE)
+
+## 贡献
+
+欢迎 PR！请先阅读 [CONTRIBUTING.md](.github/CONTRIBUTING.md)。

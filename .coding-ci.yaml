@@ -63,18 +63,21 @@ stages:
     - plugin: cmds
       params:
         cmds:
-        - echo "=== Publish to tnpm ==="
+        - echo "=== Publish to tnpm (internal mirror) ==="
         - "if [ \"$QCI_TRIGGER_TYPE\" != \"TRIGGER_TAG\" ]; then\n  echo \"⏭  Not a\
           \ tag build (trigger=$QCI_TRIGGER_TYPE), skipping publish\"\n  exit 0\n\
           fi\n"
-        - "PKG_NAME=$(node -p \"require('./package.json').name\")\nPKG_VERSION=$(node\
-          \ -p \"require('./package.json').version\")\nif npm view \"${PKG_NAME}@${PKG_VERSION}\"\
-          \ version --registry http://r.tnpm.oa.com 2>/dev/null; then\n  echo \"ERROR:\
-          \ ${PKG_NAME}@${PKG_VERSION} is already published.\"\n  exit 1\nfi\n"
+        # The public package name is `teamai-cli` on npmjs.org.
+        # For the internal tnpm mirror we publish under the scoped name `@tencent/teamai-cli`.
+        - "npm pkg set name=@tencent/teamai-cli"
+        - "PKG_VERSION=$(node -p \"require('./package.json').version\")\nif npm view\
+          \ \"@tencent/teamai-cli@${PKG_VERSION}\" version --registry http://r.tnpm.oa.com\
+          \ 2>/dev/null; then\n  echo \"ERROR: @tencent/teamai-cli@${PKG_VERSION}\
+          \ is already published.\"\n  exit 1\nfi\n"
         - "echo \"//r.tnpm.oa.com/:_auth=$(echo -n \"${NPM_USERNAME}:${NPM_TOKEN}\" | base64)\" > .npmrc"
         - npm ci --ignore-scripts
         - npm run build
-        - npm publish
+        - npm publish --registry http://r.tnpm.oa.com
         - rm -f .npmrc
 trigger:
   branches:

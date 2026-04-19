@@ -104,10 +104,10 @@ export async function reportUsageToTeam(
     const events = await readUsageEvents();
     const filesToPush: string[] = [];
 
-    // Reset any dirty/conflicted state and ensure we're on master before pulling.
+    // Reset any dirty/conflicted state and ensure we're on the default branch before pulling.
     // Same pattern as push.ts — the team repo is a cache, safe to discard local state.
     const git = createGit(repoPath);
-    await resetToCleanMaster(git);
+    await resetToCleanMaster(git, repoPath);
     await pullRepo(repoPath);
 
     // Process usage stats if any events exist
