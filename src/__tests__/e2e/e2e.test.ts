@@ -28,12 +28,13 @@ function runCLIWithEnv(
   args: string[],
   envOverrides: Record<string, string> = {},
   stdin = '',
+  cwd: string = ROOT,
 ): Promise<RunResult> {
   return new Promise((resolve) => {
     const child = spawn('node', [CLI, ...args], {
       env: { ...process.env, FORCE_COLOR: '0', ...envOverrides },
       stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: ROOT,
+      cwd,
     });
 
     let stdout = '';
@@ -42,10 +43,12 @@ function runCLIWithEnv(
     child.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
     child.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
 
+    // Always close stdin so any unexpected read() in the CLI gets EOF
+    // immediately instead of hanging the test.
     if (stdin) {
       child.stdin.write(stdin);
-      child.stdin.end();
     }
+    child.stdin.end();
 
     child.on('close', (code) => {
       resolve({ code, stdout, stderr, output: stdout + stderr });
@@ -271,6 +274,245 @@ describe('remote commands', () => {
     },
   );
 
+  // ─── Extended coverage: full command surface ────────────
+  // These tests run BEFORE uninstall so they don't lose state.
+
+  it.skipIf(!CAN_RUN_REMOTE)(
+    'teamai stats — runs without crash',
+    async () => {
+      const { code, output } = await runCLI(['stats']);
+      expect(code).toBe(0);
+      expect(output.length).toBeGreaterThan(0);
+    },
+  );
+
+  it.skipIf(!CAN_RUN_REMOTE)(
+    'teamai digest — generates digest without crash',
+    async () => {
+      const { code } = await runCLI(['digest']);
+      expect(code).toBe(0);
+    },
+  );
+
+  it.skipIf(!CAN_RUN_REMOTE)(
+    'teamai recall — searches knowledge base without crash',
+    async () => {
+      const { code, output } = await runCLI(['recall', 'test']);
+      expect(code).toBe(0);
+      expect(output.length).toBeGreaterThan(0);
+    },
+  );
+
+  it.skipIf(!CAN_RUN_REMOTE)(
+    'teamai save-session --summary — records session',
+    async () => {
+      const { code } = await runCLI([
+        'save-session',
+        '--summary',
+        'CI e2e: dummy session for coverage',
+      ]);
+      expect(code).toBe(0);
+    },
+  );
+
+  it.skipIf(!CAN_RUN_REMOTE)(
+    'teamai track — records tool usage event',
+    async () => {
+      const { code } = await runCLI([
+        'track',
+        '--tool',
+        'claude',
+        'Bash',
+        'echo ci-e2e-track-test',
+      ]);
+      expect(code).toBe(0);
+    },
+  );
+
+  it.skipIf(!CAN_RUN_REMOTE)(
+    'teamai env add + list + remove — roundtrip',
+    async () => {
+      const key = 'CI_E2E_TEST_VAR';
+      const value = 'ci-test-value';
+
+      const add = await runCLI(['env', 'add', key, value]);
+      expect(add.code).toBe(0);
+
+      const list = await runCLI(['env', 'list']);
+      expect(list.code).toBe(0);
+      expect(list.output).toContain(key);
+
+      const rm = await runCLI(['env', 'remove', key]);
+      expect(rm.code).toBe(0);
+
+      // Verify removed
+      const list2 = await runCLI(['env', 'list']);
+      expect(list2.output).not.toContain(key);
+    },
+  );
+
+  it.skipIf(!CAN_RUN_REMOTE)(
+    'teamai source list — lists configured sources without crash',
+    async () => {
+      const { code, output } = await runCLI(['source', 'list']);
+      expect(code).toBe(0);
+      // Either lists sources or shows "No sources configured"
+      expect(output.length).toBeGreaterThan(0);
+    },
+  );
+
+  // source add + list + remove roundtrip against a public, stable repo.
+  // We use anthropics/skills because:
+  //   - public (no token needed, ~3.5MB clone)
+  //   - permanent (Anthropic-owned, won't disappear)
+  //   - matches the source semantic ("Agent Skills" repo)
+  // Changes only the local working tree of the fixture team-repo
+  // (sourceAdd writes teamai.yaml without committing); the CI cleanup
+  // step (git reset --hard on failure) backs us up either way. We also
+  // explicitly source-remove at the end so the fixture stays clean.
+  it.skipIf(!CAN_RUN_REMOTE)(
+    'teamai source add + list + remove — roundtrip on a public repo',
+    async () => {
+      const PUBLIC_SOURCE = 'https://github.com/anthropics/skills.git';
+      const SOURCE_NAME = 'skills'; // deriveSourceName → repo name
+
+      // Pre-clean: in case a previous failed run left it behind.
+      await runCLI(['source', 'remove', SOURCE_NAME]);
+
+      const add = await runCLI(['source', 'add', PUBLIC_SOURCE]);
+
+      // Soft-skip on network failure: the runner may not have egress to
+      // github.com (corporate proxy, DNS, etc). That's not a code bug.
+      if (add.code !== 0) {
+        const looksLikeNetworkIssue = /Could not access the source repo|Could not resolve|Connection refused|timed out|fatal: unable/i.test(
+          add.output,
+        );
+        if (looksLikeNetworkIssue) {
+          console.log(`⏭  source add failed with network error, skipping:\n${add.output.trim().slice(0, 300)}`);
+          return;
+        }
+        // Non-network failure → real bug, surface it
+        throw new Error(`source add failed unexpectedly:\n${add.output}`);
+      }
+
+      expect(add.output).toContain(SOURCE_NAME);
+
+      const list = await runCLI(['source', 'list']);
+      expect(list.code).toBe(0);
+      expect(list.output).toContain(SOURCE_NAME);
+
+      const remove = await runCLI(['source', 'remove', SOURCE_NAME]);
+      expect(remove.code).toBe(0);
+
+      // Verify gone after remove
+      const listAfter = await runCLI(['source', 'list']);
+      expect(listAfter.code).toBe(0);
+      // Note: listAfter may still contain "skills" if it's a substring of
+      // other output (e.g. directory hints), so we don't strictly assert
+      // absence — the remove exit code already confirms it.
+    },
+    // Includes a real GitHub clone (~3.5MB) — bump from default 60s.
+    90_000,
+  );
+
+  it.skipIf(!CAN_RUN_REMOTE)(
+    'teamai tags add + remove — roundtrip on a real skill',
+    async () => {
+      const repoPath = path.join(process.env.HOME ?? '', '.teamai', 'team-repo');
+      const skillsDir = path.join(repoPath, 'skills');
+      if (!fs.existsSync(skillsDir)) {
+        console.log('⏭  No skills/ in test repo, skipping tags add/remove');
+        return;
+      }
+      const skills = fs.readdirSync(skillsDir).filter((d) => {
+        try {
+          return fs.statSync(path.join(skillsDir, d)).isDirectory();
+        } catch {
+          return false;
+        }
+      });
+      if (skills.length === 0) {
+        console.log('⏭  No skills found in test repo, skipping');
+        return;
+      }
+      const skillName = skills[0];
+      const tag = '__ci_e2e_tag__';
+
+      const add = await runCLI(['tags', 'add', 'skills', skillName, tag]);
+      expect(add.code).toBe(0);
+
+      const rm = await runCLI(['tags', 'remove', 'skills', skillName, tag]);
+      expect(rm.code).toBe(0);
+    },
+  );
+
+  it.skipIf(!CAN_RUN_REMOTE)(
+    'teamai contribute --dry-run — previews contribution',
+    async () => {
+      const tmpFile = path.join(ROOT, 'dist', '__ci_e2e_contribute__.md');
+      fs.writeFileSync(
+        tmpFile,
+        '# CI E2E Test Contribution\n\nDry-run only.\n',
+      );
+
+      try {
+        const { code, output } = await runCLI([
+          '--dry-run',
+          'contribute',
+          '--file',
+          tmpFile,
+          '--title',
+          'CI E2E Test',
+        ]);
+        expect(code).toBe(0);
+        expect(output).toMatch(/dry-run|Would push|preview/i);
+      } finally {
+        fs.unlinkSync(tmpFile);
+      }
+    },
+  );
+
+  it.skipIf(!CAN_RUN_REMOTE)(
+    'teamai dashboard — boots HTTP server',
+    async () => {
+      const port = '37210';
+      const child = spawn('node', [CLI, 'dashboard', '-p', port], {
+        env: { ...process.env, FORCE_COLOR: '0' },
+        stdio: ['pipe', 'pipe', 'pipe'],
+        cwd: ROOT,
+      });
+
+      try {
+        let ok = false;
+        for (let i = 0; i < 20; i++) {
+          await new Promise((r) => setTimeout(r, 500));
+          try {
+            const res = await fetch(`http://127.0.0.1:${port}/`);
+            if (res.status >= 200 && res.status < 500) {
+              ok = true;
+              break;
+            }
+          } catch {
+            /* keep waiting for boot */
+          }
+        }
+        expect(ok).toBe(true);
+      } finally {
+        child.kill('SIGTERM');
+        await new Promise<void>((r) => {
+          const t = setTimeout(() => {
+            child.kill('SIGKILL');
+            r();
+          }, 3000);
+          child.on('close', () => {
+            clearTimeout(t);
+            r();
+          });
+        });
+      }
+    },
+  );
+
   it.skipIf(!CAN_RUN_REMOTE)(
     'teamai uninstall --dry-run — previews resources without changes',
     async () => {
@@ -390,5 +632,70 @@ describe('remote commands', () => {
       await runCLI(['roles', 'set', roleA]);
       await runCLI(['pull', '--force']);
     },
+  );
+});
+
+// ─── Init project scope (sandboxed) ──────────────────────
+// Runs in a temp cwd with --scope project so it doesn't touch the
+// user-scope ~/.teamai/ that the rest of the suite depends on.
+//
+// GitHub-only: TGit's `gf` CLI authenticates via ~/.netrc, which we lose
+// when we isolate $HOME to a temp dir. `gf auth login` then triggers an
+// interactive (inheritStdio) login that no amount of stdin piping can
+// satisfy → permanent hang. GitHub provider auths via GITHUB_TOKEN env,
+// so it works fine under HOME isolation.
+
+const PROVIDER_IS_GITHUB =
+  (process.env.TEAMAI_TEST_PROVIDER ?? 'tgit').toLowerCase() === 'github';
+
+describe('init project scope (sandboxed)', () => {
+  it.skipIf(!CAN_RUN_REMOTE || !PROVIDER_IS_GITHUB)(
+    'teamai init --scope project --repo X --force — creates .teamai/',
+    async () => {
+      const os = await import('node:os');
+      const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), 'teamai-init-'));
+
+      try {
+        const repoUrl = process.env.TEAMAI_TEST_REPO_URL ?? '';
+        const provider = (process.env.TEAMAI_TEST_PROVIDER ?? 'tgit').toLowerCase();
+        const defaultHost = provider === 'github' ? 'github.com' : 'git.woa.com';
+        const fullUrl = repoUrl.startsWith('http')
+          ? repoUrl
+          : `https://${defaultHost}/${repoUrl}.git`;
+
+        // Defense in depth: feed several blank lines on stdin in case any
+        // future prompt slips past --force. The CLI should never block.
+        const stdinAllBlanks = '\n\n\n\n\n';
+
+        const result = await runCLIWithEnv(
+          ['init', '--scope', 'project', '--repo', fullUrl, '--force'],
+          {
+            // GitHub: gh CLI / REST honors GITHUB_TOKEN
+            // TGit: gf CLI honors TGIT_TOKEN
+            GITHUB_TOKEN: process.env.TEAMAI_TEST_TOKEN ?? '',
+            TGIT_TOKEN: process.env.TEAMAI_TEST_TOKEN ?? '',
+            HOME: sandbox, // isolate from user-scope ~/.teamai
+          },
+          stdinAllBlanks,
+          sandbox, // cwd = sandbox, so .teamai/ lands here
+        );
+
+        expect(result.code).toBe(0);
+        expect(fs.existsSync(path.join(sandbox, '.teamai', 'config.yaml'))).toBe(true);
+
+        // Verify the project-scope config has the expected shape
+        const cfg = fs.readFileSync(
+          path.join(sandbox, '.teamai', 'config.yaml'),
+          'utf-8',
+        );
+        expect(cfg).toContain('repo:');
+        expect(cfg).toContain('localPath');
+      } finally {
+        fs.rmSync(sandbox, { recursive: true, force: true });
+      }
+    },
+    // init does fixture clone + member push, which is slow on CI runners.
+    // Bump from default 60s to 120s.
+    120_000,
   );
 });

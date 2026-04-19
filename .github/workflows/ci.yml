@@ -76,16 +76,23 @@ jobs:
           path: dist/
 
   e2e:
-    name: E2E (GitHub provider)
+    name: E2E (GitHub provider, full surface)
     needs: build
     runs-on: ubuntu-latest
-    # E2E tests require live repo access — skip if secrets are not configured
-    # (e.g. PRs from forks, or forks of this repo without the secrets set).
+    # E2E shares one fixture repo. Serialize across all branches/PRs so
+    # concurrent runs don't trample each other's state. Don't cancel
+    # in-progress jobs — let them finish to leave the fixture clean.
+    concurrency:
+      group: e2e-fixture-repo
+      cancel-in-progress: false
+    # Skip e2e when secrets aren't configured (e.g. PRs from forks).
     if: ${{ vars.TEAMAI_TEST_REPO_URL != '' }}
     env:
       TEAMAI_TEST_PROVIDER: github
       TEAMAI_TEST_REPO_URL: ${{ vars.TEAMAI_TEST_REPO_URL }}
       TEAMAI_TEST_TOKEN: ${{ secrets.TEAMAI_TEST_TOKEN }}
+      # The CLI's GitHub provider auto-picks up GITHUB_TOKEN for auth.
+      GITHUB_TOKEN: ${{ secrets.TEAMAI_TEST_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -102,7 +109,12 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Prepare teamai config
+      - name: Configure git identity (CI commits)
+        run: |
+          git config --global user.email "ci@teamai.test"
+          git config --global user.name "TeamAI CI"
+
+      - name: Prepare teamai config (user scope)
         run: |
           set -e
           mkdir -p "$HOME/.teamai"
@@ -118,7 +130,19 @@ jobs:
             localPath: "$REPO_LOCAL"
             remote: "$TEAMAI_TEST_REPO_URL"
           username: ci
+          updatePolicy: auto
           EOF
 
-      - name: Run E2E
-        run: npx vitest run --config vitest.e2e.config.ts
+      - name: Run E2E (full surface)
+        run: npx vitest run --config vitest.e2e.config.ts --reporter=verbose
+
+      - name: Cleanup fixture repo state on failure
+        if: failure()
+        run: |
+          # Leave the fixture branch clean for the next CI run.
+          REPO_LOCAL="$HOME/.teamai/team-repo"
+          if [ -d "$REPO_LOCAL/.git" ]; then
+            cd "$REPO_LOCAL"
+            git reset --hard HEAD || true
+            git clean -fdx || true
+          fi

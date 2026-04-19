@@ -318,10 +318,11 @@ export async function init(options: GlobalOptions & { repo?: string; scope?: str
     log.info(`Member ${username} already registered`);
   }
 
-  // Step 5.5: Configure default MR reviewers (only for fresh setup with no reviewers yet)
+  // Step 5.5: Configure default MR reviewers (only for fresh setup with no reviewers yet).
+  // --force implies non-interactive: skip reviewer prompts entirely (can be configured later).
   const currentConfig = await loadTeamConfig(localPath);
   const hasReviewers = currentConfig?.reviewers && currentConfig.reviewers.length > 0;
-  if (isNewMember && !hasReviewers) {
+  if (isNewMember && !hasReviewers && !options.force) {
     const wantReviewers = await askConfirmation(
       '\nWould you like to configure default MR reviewers? [y/N] ',
     );
