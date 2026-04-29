@@ -1,3 +1,8 @@
+---
+name: teamai-share-learnings
+description: "Contribute — 分享 Session 经验到团队知识库"
+---
+
 # Contribute — 分享 Session 经验到团队知识库
 
 总结本次 AI 编码 session 中学到的经验，推送到团队知识库。

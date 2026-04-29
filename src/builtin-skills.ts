@@ -5,6 +5,7 @@ import { log } from './utils/logger.js';
 import type { TeamaiConfig, LocalConfig } from './types.js';
 import { resolveBaseDir } from './types.js';
 import { ResourceHandler } from './resources/base.js';
+import { ensureSkillFrontmatter } from './resources/skills.js';
 
 // ─── Built-in skills deployment ──────────────────────────
 //
@@ -107,6 +108,9 @@ export async function deployBuiltinSkills(teamConfig: TeamaiConfig, localConfig?
             await fs.promises.copyFile(srcFile, destFile);
           }
         }
+
+        // Ensure SKILL.md has proper YAML frontmatter (name + description)
+        await ensureSkillFrontmatter(destDir, skillName);
 
         deployed++;
       } catch (e) {

@@ -442,6 +442,7 @@ export class SkillsHandler extends ResourceHandler {
       const dest = path.join(baseDir, toolPath.skills, item.name);
       try {
         await copyDir(item.sourcePath, dest);
+        await ensureSkillFrontmatter(dest, item.name);
         log.debug(`Synced skill ${item.name} → ${tool}`);
       } catch (e) {
         log.warn(`Failed to sync skill ${item.name} to ${tool}: ${(e as Error).message}`);
