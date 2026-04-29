@@ -1216,6 +1216,14 @@ describe('hook command strings', () => {
     expect(result.hooks.Stop).toHaveLength(3);
     expect(result.hooks.Stop.every((h: { description?: string }) => h.description)).toBe(true);
 
+    // Auto-update hook must have a 10s timeout — npm registry call should not
+    // delay session shutdown by Claude Code's default 60s if it stalls.
+    const updateHook = result.hooks.Stop.find((h: { description?: string }) =>
+      h.description?.includes('Auto-update'),
+    );
+    expect(updateHook).toBeDefined();
+    expect(updateHook.hooks[0].timeout).toBe(10);
+
     // Non-teamai hooks should be preserved
     expect(result.hooks.PreToolUse).toHaveLength(1);
     expect(result.hooks.PreToolUse[0].hooks[0].command).toContain('observe.sh');

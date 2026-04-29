@@ -358,7 +358,7 @@ export const DASHBOARD_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 /** Sessions idle for this long (ms) are removed from the dashboard */
 export const DASHBOARD_STALE_TIMEOUT_MS = 30 * 60 * 1000;
 /** Compact JSONL when it exceeds this many lines */
-export const DASHBOARD_COMPACTION_THRESHOLD = 10_000;
+export const DASHBOARD_COMPACTION_THRESHOLD = 5_000;
 /** Stopped sessions are removed from the dashboard after this many ms */
 export const DASHBOARD_STOPPED_DISPLAY_MS = 30 * 1000;
 /** Interval (ms) between PID liveness checks in the dashboard server */
@@ -380,14 +380,31 @@ export const DASHBOARD_PID_CHECK_INTERVAL_MS = 15_000;
 
 /** Per-session contribute state, persisted to ~/.teamai/sessions/{sessionId}.json */
 export interface ContributeState {
+  /** Tool count at last evaluation (used for Layer 1 fast-path check) */
+  toolCount?: number;
+  /** Unique tool names at last evaluation (cached so cache-hit hint emission can skip readEvents) */
+  uniqueTools?: number;
+  /** Timestamp when score was last evaluated (ms since epoch) */
+  lastEvaluated?: number;
   /** Smart score computed at evaluation time (undefined before evaluation) */
   smartScore?: number;
-  /** Whether the user has already contributed this session */
+  /** Whether the user has already contributed this session (set by /contribute) */
   contributed: boolean;
+  /**
+   * Whether the contribute hint has already been emitted for this session.
+   * Prevents repeated hints when Layer 2 cache is hit on subsequent Stop hooks.
+   */
+  hinted?: boolean;
 }
+
+/** Layer 1 (fast-path) threshold: if toolCount < this, skip reading events.jsonl */
+export const CONTRIBUTE_BASE_THRESHOLD = 20;
 
 /** Smart score threshold: minimum score to show contribute hint */
 export const CONTRIBUTE_SMART_THRESHOLD = 35;
+
+/** Cache smart score for this many ms (6 hours) */
+export const CONTRIBUTE_SCORE_CACHE_MS = 6 * 60 * 60 * 1000;
 
 /** Directory for per-session contribute state files */
 export const CONTRIBUTE_SESSIONS_DIR = `${TEAMAI_HOME}/sessions`;

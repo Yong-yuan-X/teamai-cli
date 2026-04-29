@@ -6,6 +6,8 @@ import { readEvents } from './dashboard-collector.js';
 import type { ContributeState, DashboardEvent } from './types.js';
 import {
   CONTRIBUTE_SMART_THRESHOLD,
+  CONTRIBUTE_BASE_THRESHOLD,
+  CONTRIBUTE_SCORE_CACHE_MS,
 } from './types.js';
 
 // ─── Contribute check data flow (Stop hook) ────────────────
@@ -15,21 +17,59 @@ import {
 //      ▼
 //  teamai contribute-check --stdin --tool <name>
 //      │
+//      ▼
+//  contributeCheckForSession(sessionId)
+//      │
 //      ├─ readState(sessionId)
-//      │   └─ missing/corrupted → default state
 //      │
-//      ├─ if contributed → exit(0), no output
+//      ├─ short-circuits (no I/O):
+//      │   ├─ state.contributed → exit(no hint)
+//      │   └─ state.hinted      → exit(no hint, dedup)
 //      │
-//      ├─ readEvents + computeSmartScore()
+//      ├─ Layer 1 fast-path:
+//      │   └─ toolCount < BASE_THRESHOLD AND lastEvaluated within CACHE TTL
+//      │      → exit(no hint), no events read
 //      │
-//      ├─ score < SMART_THRESHOLD (35) → write state, exit(0)
+//      ├─ Layer 2:
+//      │   ├─ cache hit  (smartScore + lastEvaluated fresh)
+//      │   │             → reuse score + cached display fields
+//      │   └─ cache miss → readEvents → computeSmartScore + display
 //      │
-//      └─ STDOUT hint → AI reads, suggests /contribute
+//      ├─ score < SMART_THRESHOLD → persist updates, exit(no hint)
+//      │
+//      └─ Single write (re-read latest first to avoid clobbering /contribute):
+//          persist score, toolCount, uniqueTools, lastEvaluated, hinted=true
+//          → STDOUT hint → AI reads, suggests /contribute
 //
 
-/** Get session state file path: ~/.teamai/sessions/{sessionId}.json */
+/**
+ * Sanitize a sessionId for safe use as a filesystem name.
+ *
+ * sessionId may originate from:
+ *   1. hookData.session_id (typically a hex UUID — already safe)
+ *   2. process.env.CLAUDE_SESSION_ID
+ *   3. PID fallback `pid-{pid}-{cwd}` — embeds cwd which contains "/"
+ *
+ * The PID fallback is the dangerous case: a literal "/" in the filename
+ * caused per-cwd nested directories under ~/.teamai/sessions/ that the
+ * cleanup sweep (top-level only) never reclaims.
+ *
+ * Replaces every char outside [a-zA-Z0-9._-] with "_". The transformation
+ * is collision-resistant in practice because the input shape is constrained
+ * (hex IDs or PID+cwd which is itself unique on a given machine).
+ */
+function sanitizeSessionId(sessionId: string): string {
+  return sessionId.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+/** Get session state file path: ~/.teamai/sessions/{sanitized-sessionId}.json */
 function getSessionPath(sessionId: string): string {
-  return path.join(process.env.HOME ?? '', '.teamai', 'sessions', `${sessionId}.json`);
+  return path.join(
+    process.env.HOME ?? '',
+    '.teamai',
+    'sessions',
+    `${sanitizeSessionId(sessionId)}.json`,
+  );
 }
 
 /** Default empty state for a new session. */
@@ -47,6 +87,10 @@ export async function readContributeState(sessionId: string): Promise<Contribute
       return {
         smartScore: typeof raw.smartScore === 'number' ? raw.smartScore : undefined,
         contributed: typeof raw.contributed === 'boolean' ? raw.contributed : false,
+        toolCount: typeof raw.toolCount === 'number' ? raw.toolCount : undefined,
+        uniqueTools: typeof raw.uniqueTools === 'number' ? raw.uniqueTools : undefined,
+        lastEvaluated: typeof raw.lastEvaluated === 'number' ? raw.lastEvaluated : undefined,
+        hinted: typeof raw.hinted === 'boolean' ? raw.hinted : undefined,
       };
     }
     return defaultState();
@@ -70,14 +114,25 @@ export async function writeContributeState(sessionId: string, state: ContributeS
 
 const STALE_SESSION_MS = 24 * 60 * 60 * 1000;
 
-/** Remove session files older than 24h. Skips the current session. */
-async function cleanupStaleSessions(dir: string, currentSessionId: string): Promise<void> {
+/**
+ * Remove session files older than 24h. Skips the current session.
+ *
+ * @param dir              Sessions directory.
+ * @param currentSessionId Raw sessionId of the just-written session (will be
+ *                         sanitized internally to match the on-disk filename).
+ *
+ * @internal Exported for tests; do not call from CLI code paths.
+ */
+export async function cleanupStaleSessions(dir: string, currentSessionId: string): Promise<void> {
   const now = Date.now();
+  // Filenames on disk are sanitized; compare against the sanitized form of the
+  // current sessionId so the "skip current" guard actually matches.
+  const currentBasename = sanitizeSessionId(currentSessionId);
   const entries = await fs.promises.readdir(dir);
   for (const entry of entries) {
     if (!entry.endsWith('.json')) continue;
     const name = entry.replace('.json', '');
-    if (name === currentSessionId) continue;
+    if (name === currentBasename) continue;
     const filePath = path.join(dir, entry);
     try {
       const stat = await fs.promises.stat(filePath);
@@ -195,12 +250,142 @@ async function readStdinAndDeriveSession(): Promise<{ sessionId: string } | null
   }
 }
 
+/** Count tool_use events for a session (canonical definition, used everywhere). */
+function countToolUseEvents(events: DashboardEvent[]): number {
+  return events.filter((e) => e.type === 'tool_use').length;
+}
+
+/** Count unique tool names across tool_use events. */
+function countUniqueTools(events: DashboardEvent[]): number {
+  return new Set(events.filter((e) => e.toolName).map((e) => e.toolName)).size;
+}
+
+/** Build the STDOUT hint string from pre-computed display values. */
+function buildHint(totalToolCalls: number, uniqueTools: number): string {
+  return [
+    `[teamai] 本次 session 内容丰富（${totalToolCalls} 次工具调用，${uniqueTools} 种不同工具）。`,
+    `建议运行 /teamai-share-learnings 总结本次 session 的经验并分享给团队。`,
+    `总结文档将保存到团队仓库的 learnings/ 目录。`,
+  ].join('');
+}
+
+/**
+ * Evaluate a single session and decide whether to emit a contribute hint.
+ *
+ * Decision tree:
+ *
+ *   Short-circuits (no I/O beyond initial state read):
+ *     - state.contributed → skip (user already ran /contribute)
+ *     - state.hinted      → skip (hint already emitted, dedup)
+ *
+ *   Layer 1 fast-path (skips events.jsonl read):
+ *     - toolCount < BASE_THRESHOLD AND lastEvaluated within CACHE TTL
+ *       → skip (small session, recently checked)
+ *
+ *   Layer 2 score resolution:
+ *     - cache hit:  smartScore + display fields present, lastEvaluated fresh
+ *                   → reuse cached values, no events read
+ *     - cache miss: readEvents → computeSmartScore + display
+ *
+ *   Hint emission (score >= SMART_THRESHOLD):
+ *     - Return hint string built from cached display fields
+ *
+ *   Persistence (single atomic write per call, re-read latest first to avoid
+ *   clobbering /contribute marks set during the read↔write window):
+ *     - Cache miss path always writes (smartScore + display + lastEvaluated)
+ *     - Hint path additionally sets hinted=true
+ *     - Cache hit + low score path skips the write entirely (state is current)
+ *
+ * Returns the hint string (caller writes to stdout) or null if no hint.
+ */
+export async function contributeCheckForSession(sessionId: string): Promise<{ hint: string | null }> {
+  const state = await readContributeState(sessionId);
+  const now = Date.now();
+
+  if (state.contributed) {
+    return { hint: null };
+  }
+  if (state.hinted) {
+    log.debug(`contribute-check: hint already emitted for ${sessionId.slice(0, 16)}, skipping`);
+    return { hint: null };
+  }
+
+  const cacheFresh =
+    state.lastEvaluated !== undefined && now - state.lastEvaluated < CONTRIBUTE_SCORE_CACHE_MS;
+
+  // Layer 1 fast-path
+  if (
+    cacheFresh &&
+    state.toolCount !== undefined &&
+    state.toolCount < CONTRIBUTE_BASE_THRESHOLD
+  ) {
+    log.debug(`contribute-check: fast-path skip (toolCount ${state.toolCount} < ${CONTRIBUTE_BASE_THRESHOLD}, cache fresh)`);
+    return { hint: null };
+  }
+
+  // Layer 2: resolve score + display
+  let score: number;
+  let toolCount: number;
+  let uniqueTools: number;
+  let needsPersist: boolean;
+
+  const cachedDisplayAvailable =
+    cacheFresh
+    && state.smartScore !== undefined
+    && state.toolCount !== undefined
+    && state.uniqueTools !== undefined;
+
+  if (cachedDisplayAvailable) {
+    log.debug(`contribute-check: cache hit (score=${state.smartScore})`);
+    score = state.smartScore!;
+    toolCount = state.toolCount!;
+    uniqueTools = state.uniqueTools!;
+    needsPersist = false;
+  } else {
+    const allEvents = await readEvents();
+    const sessionEvents = allEvents.filter((e) => e.sessionId === sessionId);
+    score = computeSmartScore(sessionEvents);
+    toolCount = countToolUseEvents(sessionEvents);
+    uniqueTools = countUniqueTools(sessionEvents);
+    needsPersist = true;
+    log.debug(`contribute-check: session ${sessionId.slice(0, 16)} smart score = ${score} (threshold: ${CONTRIBUTE_SMART_THRESHOLD})`);
+  }
+
+  const willHint = score >= CONTRIBUTE_SMART_THRESHOLD;
+
+  // Single write: re-read first to avoid clobbering parallel /contribute marks.
+  // Skip the write on cache hit + low score (state is already current).
+  if (needsPersist || willHint) {
+    const latest = await readContributeState(sessionId);
+    const updated: ContributeState = {
+      ...latest,
+      smartScore: score,
+      toolCount,
+      uniqueTools,
+      lastEvaluated: needsPersist ? now : (latest.lastEvaluated ?? now),
+    };
+    // Only persist hinted=true; never write hinted=false (semantically same as
+    // undefined and would surprise tests / consumers expecting absence).
+    if (latest.hinted || willHint) {
+      updated.hinted = true;
+    }
+    await writeContributeState(sessionId, updated);
+  }
+
+  if (!willHint) {
+    log.debug('contribute-check: score below threshold, skipping hint');
+    return { hint: null };
+  }
+
+  return { hint: buildHint(toolCount, uniqueTools) };
+}
+
 /**
  * Handle `teamai contribute-check --stdin --tool <name>`.
  * Called by Stop hook at session end.
  *
- * Reads session events, computes a smart score, and outputs a STDOUT
- * hint when the session appears valuable enough to document.
+ * Thin CLI wrapper around `contributeCheckForSession`: reads STDIN to derive
+ * the session ID and writes the hint (if any) to STDOUT in Stop hook format.
  *
  * Output: STDOUT hint when smart threshold is exceeded (once per session).
  * Claude Code reads hook STDOUT and passes it to AI as context,
@@ -213,44 +398,11 @@ export async function contributeCheck(toolArg?: string): Promise<void> {
     return;
   }
 
-  const { sessionId } = stdinData;
-  const state = await readContributeState(sessionId);
-
-  // Already contributed — no need to suggest again
-  if (state.contributed) {
-    return;
+  const { hint } = await contributeCheckForSession(stdinData.sessionId);
+  if (hint !== null) {
+    // Stop schema has no hookSpecificOutput; use stopReason
+    process.stdout.write(JSON.stringify({ stopReason: hint }));
   }
-
-  // Compute smart score from session events
-  const allEvents = await readEvents();
-  const sessionEvents = allEvents.filter((e) => e.sessionId === sessionId);
-  const score = computeSmartScore(sessionEvents);
-
-  log.debug(`contribute-check: session ${sessionId.slice(0, 16)} smart score = ${score} (threshold: ${CONTRIBUTE_SMART_THRESHOLD})`);
-
-  // Persist score for diagnostics
-  const updatedState: ContributeState = { ...state, smartScore: score };
-  await writeContributeState(sessionId, updatedState);
-
-  if (score < CONTRIBUTE_SMART_THRESHOLD) {
-    log.debug('contribute-check: score below threshold, skipping hint');
-    return;
-  }
-
-  // Output STDOUT hint — Claude Code passes this to the AI
-  const totalToolCalls = sessionEvents.filter((e) => e.type === 'tool_use').length;
-  const uniqueTools = new Set(sessionEvents.filter((e) => e.toolName).map((e) => e.toolName)).size;
-  const hint = [
-    `[teamai] 本次 session 内容丰富（${totalToolCalls} 次工具调用，${uniqueTools} 种不同工具）。`,
-    `建议运行 /teamai-share-learnings 总结本次 session 的经验并分享给团队。`,
-    `总结文档将保存到团队仓库的 learnings/ 目录。`,
-  ].join('');
-
-  // Output via Stop hook — use stopReason (Stop schema has no hookSpecificOutput)
-  const hookOutput = JSON.stringify({
-    stopReason: hint,
-  });
-  process.stdout.write(hookOutput);
 }
 
 /**

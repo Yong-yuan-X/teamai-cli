@@ -47,6 +47,8 @@ export const CLAUDE_TO_CURSOR_EVENTS: Record<string, string> = {
 interface HookEntry {
   type: string;
   command: string;
+  /** Per-hook timeout in seconds. Falls back to Claude Code's default (60s) if omitted. */
+  timeout?: number;
 }
 
 interface HookMatcher {
@@ -105,7 +107,9 @@ function getClaudeHooks(tool: string): ClaudeHookDef[] {
       descriptionKeyword: 'Auto-update',
       hook: {
         matcher: '*',
-        hooks: [{ type: 'command', command: TEAMAI_UPDATE_COMMAND }],
+        // 10s timeout: npm registry call typically <5s; cap at 10s so a stalled
+        // call cannot delay session shutdown by the default 60s.
+        hooks: [{ type: 'command', command: TEAMAI_UPDATE_COMMAND, timeout: 10 }],
         description: `${TEAMAI_HOOK_DESCRIPTION_PREFIX} Auto-update on session end`,
       },
     },
@@ -210,7 +214,7 @@ function buildCursorHooks(tool: string): Record<string, CursorHookEntry[]> {
       { command: getDashboardReportCommand(tool), timeout: 10 },
     ],
     stop: [
-      { command: TEAMAI_UPDATE_COMMAND, timeout: 90 },
+      { command: TEAMAI_UPDATE_COMMAND, timeout: 10 },
       { command: getDashboardReportCommand(tool), timeout: 10 },
       { command: getContributeCheckCommand(tool), timeout: 10 },
     ],
