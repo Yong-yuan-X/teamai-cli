@@ -1,4 +1,4 @@
-# TeamAI — Git-native Team AI Experience Sharing
+# TeamAI — The team harness for AI agents
 
 > [English](README.en.md) | [简体中文](README.md)
 
